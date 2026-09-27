@@ -236,10 +236,10 @@
             { code: '0205625', naam: 'Woordvoerder VR Noord-Holland-Noord', kleur: '#f472b6' },
         ];
         // Beide feeds worden opgehaald en samengevoegd; valt er één uit, dan komt de andere nog door.
-        // 'gemengd': de feed bevat ook andere diensten (ambulance) die eruit gefilterd moeten worden.
+        // 'filter': alleen meldingen voor onze capcodes tonen. Zonder filter wordt de hele feed getoond.
         const FEEDS = [
-            { naam: 'alarmeringen.nl', url: 'https://alarmeringen.nl/feeds/user/e3826aac-12d9-4685-be9e-e30a469de97c.rss' },
-            { naam: 'alarmeringdroid', url: 'https://www.alarmeringdroid.nl/rss/7738690e', gemengd: true },
+            { naam: 'alarmeringen.nl', url: 'https://alarmeringen.nl/feeds/user/e3826aac-12d9-4685-be9e-e30a469de97c.rss', filter: true },
+            { naam: 'alarmeringdroid', url: 'https://www.alarmeringdroid.nl/rss/7738690e' },
         ];
         const VERVERS_MS = 60 * 1000;          // nieuwe meldingen ophalen
         const OPNIEUW_MS = 20 * 1000;          // na een mislukte poging sneller opnieuw proberen
@@ -402,37 +402,12 @@
                 };
             });
 
-            // Meldingen met een van onze capcodes altijd tonen.
-            if (feed.gemengd) {
-                // Gemengde feed: zonder capcode alleen politie tonen (ambulance eruit), geen terugval.
-                return alle.filter(m => m.capcodes.length || (!/\b\d{7}\b/.test(m.titel + ' ' + m.beschrijving) && isPolitie(m)));
-            }
+            if (!feed.filter) return alle;
+
             // Persoonlijke feed: staat er geen enkele capcode in een item, dan is de feed al gefilterd.
             const gefilterd = alle.filter(m => m.capcodes.length || !/\b\d{7}\b/.test(m.titel + ' ' + m.beschrijving));
             // Filter houdt niets over? Dan noteert de feed capcodes anders: liever alles dan een leeg scherm.
             return gefilterd.length ? gefilterd : alle;
-        }
-
-        /* Is dit een politiemelding? (voor de gemengde alarmeringdroid-feed)
-         * - Heeft de feed een categorie/dienst, dan is die leidend.
-         * - Anders: ambulance herkennen aan hun urgentiecodes (A1, A2, B1, B2) en woorden als
-         *   ambulance/ambu/MKA/lifeliner; politie aan P 1-3 / Prio 1-3 of het woord politie.
-         */
-        const AMBULANCE = /\b(ambulance|ambu|mka|mmt|lifeliner|traumaheli|zorgambulance)\b|\b[AB] ?[12]\b/i;
-        const BRANDWEER = /\bbrandweer\b|\bbrw\b/i;
-        const POLITIE = /\bpolitie\b|\bpol\b|\bP ?[123]\b|\bprio ?[123]\b/i;
-        function isPolitie(m) {
-            const cat = m.categorie || '';
-            if (/politie/i.test(cat)) return true;
-            if (AMBULANCE.test(cat) || BRANDWEER.test(cat)) return false;
-
-            const t = m.titel + ' ' + m.beschrijving;
-            if (/\bpolitie\b/i.test(t)) return true;
-            // Begint de melding met een ambulance-urgentiecode, dan is het ambulance
-            if (/^\s*[AB] ?[12]\b/i.test(m.titel)) return false;
-            if (AMBULANCE.test(t) && !POLITIE.test(m.titel)) return false;
-            if (BRANDWEER.test(t)) return false;
-            return true;
         }
 
         /* Dezelfde melding kan in beide feeds staan (met een ander id).
