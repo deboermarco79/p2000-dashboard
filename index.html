@@ -44,7 +44,12 @@
         }
         .status {
             display: flex; align-items: center; gap: 0.6em;
-            color: var(--muted); font-size: 1em; white-space: nowrap;
+            color: var(--muted); font-size: 1em; min-width: 0;
+        }
+        .status #statusTekst { white-space: nowrap; }
+        .status #statusDetail {
+            display: block; font-size: 0.75em; margin-top: 0.25em; opacity: 0.8;
+            white-space: normal; max-width: 60vw;
         }
         .dot { width: 0.8em; height: 0.8em; border-radius: 50%; background: var(--muted); }
         .dot.ok { background: var(--prio3); box-shadow: 0 0 0.6em var(--prio3); }
@@ -191,7 +196,7 @@
     <header>
         <div class="status">
             <span class="dot" id="dot"></span>
-            <span id="statusTekst">Verbinden…</span>
+            <span><span id="statusTekst">Verbinden…</span><span id="statusDetail"></span></span>
         </div>
         <div class="clock">
             <div class="time" id="tijd">00:00:00</div>
@@ -232,6 +237,7 @@
         ];
         const FEED_URL = 'https://alarmeringen.nl/feeds/user/e3826aac-12d9-4685-be9e-e30a469de97c.rss';
         const VERVERS_MS = 60 * 1000;          // nieuwe meldingen ophalen
+        const OPNIEUW_MS = 20 * 1000;          // na een mislukte poging sneller opnieuw proberen
         const NIEUW_MS = 15 * 60 * 1000;       // melding telt als "nieuw" (knipperend label)
         const CACHE_KEY = 'p2000-persalarm-' + FEED_URL;
 
@@ -549,18 +555,21 @@
             $('stat7').textContent = meldingen.filter(m => nu - m.tijd < 7 * 864e5).length;
         }
 
-        function renderStatus(fout, route) {
+        function renderStatus(fout, route, detail) {
             const dot = $('dot');
+            const wanneer = ms => (fmtDag(ms) === 'Vandaag' ? '' : fmtDag(ms).toLowerCase() + ' ') + fmtTijd(ms);
+            $('statusDetail').textContent = '';
             if (!fout) {
                 dot.className = 'dot ok';
                 $('statusTekst').textContent = 'Live · bijgewerkt ' + fmtTijd(laatsteSucces) + (route ? ' · via ' + route : '');
-            } else if (laatsteSucces) {
-                dot.className = 'dot warn';
-                $('statusTekst').textContent = 'Geen verbinding · laatst bijgewerkt ' + fmtTijd(laatsteSucces);
-            } else {
-                dot.className = 'dot err';
-                $('statusTekst').textContent = 'Geen verbinding met de feed';
+                return;
             }
+            dot.className = laatsteSucces ? 'dot warn' : 'dot err';
+            $('statusTekst').textContent = laatsteSucces
+                ? 'Geen verbinding · laatst bijgewerkt ' + wanneer(laatsteSucces) + ' · nieuwe poging over ' + OPNIEUW_MS / 1000 + ' s'
+                : 'Geen verbinding met de feed';
+            // Per route wat er misging, zodat de oorzaak op het scherm te lezen is
+            if (detail) $('statusDetail').textContent = detail;
         }
 
         function renderAlles() {
@@ -587,9 +596,11 @@
 
         /* ================= Hoofdlus ================= */
         let bezig = false;
+        let volgendeTimer;
         async function ververs() {
             if (bezig) return;           // vorige poging loopt nog
             bezig = true;
+            let gelukt = true;
             try {
                 const { items, route } = await haalFeed();
                 const nieuw = verwerk(items);
@@ -614,12 +625,16 @@
                     hero.className = 'hero';
                     hero.replaceChildren(el('div', 'empty', '⚠️ Kan meldingen niet laden'));
                     hero.firstChild.appendChild(el('small', null,
-                        e.message.replace(/ · /g, '\n') + '\n\nNieuwe poging over ' + VERVERS_MS / 1000 + ' s'));
+                        e.message.replace(/ · /g, '\n') + '\n\nNieuwe poging over ' + OPNIEUW_MS / 1000 + ' s'));
                 }
-                renderStatus(true);
+                renderStatus(true, null, e.message.replace(/^Feed niet bereikbaar\. /, ''));
+                gelukt = false;
             } finally {
                 bezig = false;
             }
+            // Volgende poging: normaal elke minuut, na een fout sneller
+            clearTimeout(volgendeTimer);
+            volgendeTimer = setTimeout(ververs, gelukt ? VERVERS_MS : OPNIEUW_MS);
         }
 
         // Na draaien/verkleinen van het scherm opnieuw bepalen hoeveel meldingen passen
@@ -632,7 +647,6 @@
         laadCache();
         if (meldingen.length) { renderAlles(); renderStatus(true); }
         ververs();
-        setInterval(ververs, VERVERS_MS);
     </script>
 </body>
 </html>
