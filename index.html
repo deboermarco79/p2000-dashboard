@@ -413,7 +413,7 @@
                 "'": '&#039;'
             };
             return text.replace(/[&<>"']/g, m => map[m]);
-        }
+        } 
 
         function updateTime() {
             const now = new Date().toLocaleTimeString('nl-NL', {
