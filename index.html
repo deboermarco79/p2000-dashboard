@@ -144,7 +144,6 @@
             flex: 1; min-height: 0;
             overflow: hidden;
             display: flex; flex-direction: column; gap: 0.7em;
-            scroll-behavior: smooth;
         }
         .item {
             display: grid;
@@ -234,7 +233,6 @@
         const FEED_URL = 'https://alarmeringen.nl/feeds/user/e3826aac-12d9-4685-be9e-e30a469de97c.rss';
         const VERVERS_MS = 60 * 1000;          // nieuwe meldingen ophalen
         const NIEUW_MS = 15 * 60 * 1000;       // melding telt als "nieuw" (knipperend label)
-        const SCROLL_MS = 10 * 1000;           // lijst doorbladeren
         const CACHE_KEY = 'p2000-persalarm-' + FEED_URL;
 
         /* Een browser mag een feed van een andere site alleen lezen als die site dat toestaat (CORS).
@@ -502,6 +500,16 @@
             hero.appendChild(meta);
         }
 
+        // Vaste lijst zonder scrollen: meldingen die niet meer helemaal passen vallen onderaan weg
+        function passend(lijst) {
+            if (getComputedStyle(lijst).overflow === 'visible') return;   // staand scherm: alles tonen
+            const onder = lijst.getBoundingClientRect().bottom;
+            for (const item of [...lijst.children].reverse()) {
+                if (item.getBoundingClientRect().bottom <= onder + 1) break;
+                item.remove();
+            }
+        }
+
         function renderLijst() {
             const lijst = $('lijst');
             lijst.replaceChildren();
@@ -530,6 +538,7 @@
 
                 lijst.appendChild(item);
             }
+            passend(lijst);
         }
 
         function renderStats() {
@@ -613,14 +622,9 @@
             }
         }
 
-        // Lijst langzaam doorbladeren als niet alles op het scherm past
-        setInterval(() => {
-            const lijst = $('lijst');
-            const max = lijst.scrollHeight - lijst.clientHeight;
-            if (max <= 0) return;
-            const volgende = lijst.scrollTop + lijst.clientHeight * 0.8;
-            lijst.scrollTop = volgende >= max + 5 ? 0 : Math.min(volgende, max);
-        }, SCROLL_MS);
+        // Na draaien/verkleinen van het scherm opnieuw bepalen hoeveel meldingen passen
+        let resizeTimer;
+        addEventListener('resize', () => { clearTimeout(resizeTimer); resizeTimer = setTimeout(renderLijst, 300); });
 
         // "x min geleden" en NIEUW-labels actueel houden tussen verversingen door
         setInterval(() => { if (meldingen.length) { renderHero(); renderStats(); } }, 30 * 1000);
