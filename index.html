@@ -65,11 +65,11 @@
         const feedUrl = 'https://alarmeringen.nl/feeds/user/e3826aac-12d9-4685-be9e-e30a469de97c.rss';
         const container = document.getElementById('container');
         
-        // Lijst met CORS proxies om te proberen als fallback
+        // Geavanceerde lijst met proxies (mix van JSON wrappers en RAW text)
         const proxies = [
-            `https://corsproxy.io/?${encodeURIComponent(feedUrl)}`,
-            `https://api.allorigins.win/raw?url=${encodeURIComponent(feedUrl)}`,
-            `https://thingproxy.freeboard.io/fetch/${feedUrl}`
+            { url: `https://api.allorigins.win/get?url=${encodeURIComponent(feedUrl)}`, type: 'json' },
+            { url: `https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(feedUrl)}`, type: 'raw' },
+            { url: `https://corsproxy.io/?${encodeURIComponent(feedUrl)}`, type: 'raw' }
         ];
         
         setInterval(() => {
@@ -86,21 +86,23 @@
             return '';
         }
 
-        async function fetchWithFallback(urlList) {
-            for (let i = 0; i < urlList.length; i++) {
+        async function fetchWithFallback(proxyList) {
+            for (let i = 0; i < proxyList.length; i++) {
                 try {
-                    const response = await fetch(urlList[i], {
-                        cache: 'no-store', // Voorkom oude data
-                        headers: {
-                            'Accept': 'application/rss+xml, application/xml, text/xml, */*'
-                        }
-                    });
+                    const proxy = proxyList[i];
+                    const response = await fetch(proxy.url, { cache: 'no-store' });
+                    
                     if (response.ok) {
-                        return await response.text();
+                        if (proxy.type === 'json') {
+                            const data = await response.json();
+                            // AllOrigins plaatst de broncode in de 'contents' variabele
+                            if (data.contents) return data.contents;
+                        } else {
+                            return await response.text();
+                        }
                     }
                 } catch (error) {
-                    console.warn(`Proxy ${i + 1} mislukt, probeer de volgende...`);
-                    // Ga door naar de volgende proxy in de lijst
+                    console.warn(`Proxy ${i + 1} (${proxy.url}) mislukt, probeer de volgende...`);
                 }
             }
             throw new Error('Alle proxy servers zijn onbereikbaar.');
