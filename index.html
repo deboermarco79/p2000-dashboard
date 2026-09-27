@@ -132,17 +132,6 @@
         @keyframes blink { to { visibility: hidden; } }
 
 
-        /* ---------- Statistieken ---------- */
-        .stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1.6vw; }
-        .stat {
-            background: var(--panel);
-            border: 0.12em solid var(--line);
-            border-radius: 0.8em;
-            padding: 1em 1.3em;
-        }
-        .stat .n { font-size: 3em; font-weight: 750; line-height: 1; font-variant-numeric: tabular-nums; }
-        .stat .t { color: var(--muted); margin-top: 0.4em; font-size: 1em; }
-
         /* ---------- Lijst ---------- */
         .list-wrap { flex: 1; min-height: 0; display: flex; flex-direction: column; }
         #lijst {
@@ -210,11 +199,6 @@
             <article class="hero" id="hero">
                 <div class="empty">Meldingen ophalen…</div>
             </article>
-            <div class="stats">
-                <div class="stat"><div class="n" id="statVandaag">–</div><div class="t">Vandaag</div></div>
-                <div class="stat"><div class="n" id="stat24">–</div><div class="t">Afgelopen 24 uur</div></div>
-                <div class="stat"><div class="n" id="stat7">–</div><div class="t">Afgelopen 7 dagen</div></div>
-            </div>
         </section>
 
         <section class="col">
@@ -571,14 +555,6 @@
             passend(lijst);
         }
 
-        function renderStats() {
-            const nu = Date.now();
-            const middernacht = new Date(); middernacht.setHours(0, 0, 0, 0);
-            $('statVandaag').textContent = meldingen.filter(m => m.tijd >= middernacht.getTime()).length;
-            $('stat24').textContent = meldingen.filter(m => nu - m.tijd < 864e5).length;
-            $('stat7').textContent = meldingen.filter(m => nu - m.tijd < 7 * 864e5).length;
-        }
-
         function renderStatus(fout, route, detail) {
             const dot = $('dot');
             const wanneer = ms => (fmtDag(ms) === 'Vandaag' ? '' : fmtDag(ms).toLowerCase() + ' ') + fmtTijd(ms);
@@ -600,7 +576,6 @@
         function renderAlles() {
             renderHero();
             renderLijst();
-            renderStats();
         }
 
         /* ================= Cache (zodat de tv na een herstart direct iets toont) ================= */
@@ -672,7 +647,7 @@
         addEventListener('resize', () => { clearTimeout(resizeTimer); resizeTimer = setTimeout(renderLijst, 300); });
 
         // "x min geleden" en NIEUW-labels actueel houden tussen verversingen door
-        setInterval(() => { if (meldingen.length) { renderHero(); renderStats(); } }, 30 * 1000);
+        setInterval(() => { if (meldingen.length) renderHero(); }, 30 * 1000);
 
         laadCache();
         if (meldingen.length) { renderAlles(); renderStatus(true); }
