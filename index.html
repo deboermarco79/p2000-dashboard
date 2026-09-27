@@ -1,0 +1,396 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>P2000 Alarmeringen Dashboard</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+            color: #fff;
+            overflow: hidden;
+            height: 100vh;
+        }
+
+        .container {
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+            padding: 30px;
+        }
+
+        .header {
+            text-align: center;
+            margin-bottom: 30px;
+            border-bottom: 3px solid #ff6b6b;
+            padding-bottom: 20px;
+        }
+
+        .header h1 {
+            font-size: 3.5em;
+            margin-bottom: 10px;
+            text-shadow: 0 2px 10px rgba(255, 107, 107, 0.5);
+            color: #ff6b6b;
+        }
+
+        .header p {
+            font-size: 1.2em;
+            color: #aaa;
+        }
+
+        .alerts-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 20px;
+            flex: 1;
+            overflow-y: auto;
+            padding-right: 10px;
+        }
+
+        .alert-card {
+            background: linear-gradient(135deg, #2d3561 0%, #1f2549 100%);
+            border-left: 6px solid #ff6b6b;
+            padding: 25px;
+            border-radius: 8px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            min-height: 180px;
+        }
+
+        .alert-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 12px 40px rgba(255, 107, 107, 0.3);
+        }
+
+        .alert-card.urgent {
+            border-left-color: #ff3333;
+            background: linear-gradient(135deg, #4a2c2c 0%, #3d1f1f 100%);
+            animation: urgentPulse 2s infinite;
+        }
+
+        @keyframes urgentPulse {
+            0%, 100% { box-shadow: 0 8px 32px rgba(255, 51, 51, 0.2); }
+            50% { box-shadow: 0 8px 32px rgba(255, 51, 51, 0.5); }
+        }
+
+        .alert-title {
+            font-size: 1.6em;
+            font-weight: bold;
+            margin-bottom: 12px;
+            color: #ff6b6b;
+        }
+
+        .alert-time {
+            font-size: 0.95em;
+            color: #888;
+            margin-bottom: 15px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .alert-location {
+            font-size: 1.3em;
+            margin-bottom: 12px;
+            color: #fff;
+            font-weight: 600;
+        }
+
+        .alert-description {
+            font-size: 1.05em;
+            color: #ccc;
+            line-height: 1.5;
+            margin-top: 10px;
+        }
+
+        .status-bar {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-top: 20px;
+            padding-top: 20px;
+            border-top: 1px solid #444;
+        }
+
+        .last-update {
+            font-size: 1em;
+            color: #aaa;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .pulse-dot {
+            width: 10px;
+            height: 10px;
+            background: #00ff00;
+            border-radius: 50%;
+            animation: pulse 1.5s infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+
+        .alert-count {
+            background: #ff6b6b;
+            color: #000;
+            padding: 12px 24px;
+            border-radius: 20px;
+            font-weight: bold;
+            font-size: 1.2em;
+        }
+
+        .loading {
+            text-align: center;
+            padding: 50px;
+            font-size: 2.5em;
+            color: #ff6b6b;
+            grid-column: 1 / -1;
+        }
+
+        .error {
+            background: #8b0000;
+            padding: 20px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            font-size: 1.2em;
+            border-left: 6px solid #ff0000;
+        }
+
+        .alerts-grid::-webkit-scrollbar {
+            width: 12px;
+        }
+
+        .alerts-grid::-webkit-scrollbar-track {
+            background: transparent;
+        }
+
+        .alerts-grid::-webkit-scrollbar-thumb {
+            background: #ff6b6b;
+            border-radius: 6px;
+        }
+
+        .alerts-grid::-webkit-scrollbar-thumb:hover {
+            background: #ff8888;
+        }
+
+        .category-badge {
+            display: inline-block;
+            padding: 4px 12px;
+            background: rgba(255, 107, 107, 0.2);
+            border: 1px solid #ff6b6b;
+            border-radius: 4px;
+            font-size: 0.85em;
+            margin-bottom: 10px;
+            color: #ff6b6b;
+        }
+
+        @media (max-width: 1920px) {
+            .alerts-grid {
+                grid-template-columns: repeat(2, 1fr);
+            }
+        }
+
+        @media (max-width: 1280px) {
+            .alerts-grid {
+                grid-template-columns: 1fr;
+            }
+            
+            .header h1 {
+                font-size: 2.5em;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🚨 P2000 ALARMERINGEN</h1>
+            <p>Realtime meldingen overzicht</p>
+        </div>
+
+        <div id="error-container"></div>
+
+        <div class="alerts-grid" id="alerts-container">
+            <div class="loading">⏳ Meldingen laden...</div>
+        </div>
+
+        <div class="status-bar">
+            <div class="last-update">
+                Bijgewerkt: <span id="update-time">--:--</span>
+                <div class="pulse-dot"></div>
+            </div>
+            <div class="alert-count" id="alert-count">0 meldingen</div>
+        </div>
+    </div>
+
+    <script>
+        const FEED_URL = 'http://alarmeringen.nl/feeds/user/e3826aac-12d9-4685-be9e-e30a469de97c.rss';
+        const UPDATE_INTERVAL = 20000;
+        let lastAlertCount = 0;
+
+        function playAlertSound() {
+            try {
+                const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+                const oscillator = audioContext.createOscillator();
+                const gainNode = audioContext.createGain();
+
+                oscillator.connect(gainNode);
+                gainNode.connect(audioContext.destination);
+
+                oscillator.frequency.value = 800;
+                oscillator.type = 'sine';
+                gainNode.gain.setValueAtTime(0.3, audioContext.currentTime);
+                gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.5);
+
+                oscillator.start(audioContext.currentTime);
+                oscillator.stop(audioContext.currentTime + 0.5);
+            } catch (e) {
+                console.log('Geluid niet ondersteund');
+            }
+        }
+
+        async function fetchAlertsWithCORS() {
+            try {
+                const data = await fetch(`https://api.allorigins.win/get?url=${encodeURIComponent(FEED_URL)}`)
+                    .then(r => r.json());
+
+                const parser = new DOMParser();
+                const xml = parser.parseFromString(data.contents, 'application/xml');
+
+                if (xml.getElementsByTagName('parsererror').length) {
+                    throw new Error('XML Parse Error');
+                }
+
+                const items = xml.getElementsByTagName('item');
+                const alerts = [];
+
+                for (let i = 0; i < Math.min(items.length, 12); i++) {
+                    const item = items[i];
+                    const title = item.getElementsByTagName('title')[0]?.textContent || 'Onbekend';
+                    const description = item.getElementsByTagName('description')[0]?.textContent || '';
+                    const pubDate = item.getElementsByTagName('pubDate')[0]?.textContent || '';
+
+                    let timeStr = '';
+                    try {
+                        timeStr = new Date(pubDate).toLocaleTimeString('nl-NL', {
+                            hour: '2-digit',
+                            minute: '2-digit'
+                        });
+                    } catch {
+                        timeStr = '--:--';
+                    }
+
+                    let category = 'Overig';
+                    if (title.toLowerCase().includes('brand')) category = 'Brand';
+                    else if (title.toLowerCase().includes('ambulance')) category = 'Ambulance';
+                    else if (title.toLowerCase().includes('politie')) category = 'Politie';
+
+                    alerts.push({
+                        title,
+                        description,
+                        time: timeStr,
+                        category,
+                        urgent: title.toLowerCase().includes('brand') || 
+                               title.toLowerCase().includes('grote brand')
+                    });
+                }
+
+                clearError();
+                displayAlerts(alerts);
+                updateTime();
+                
+                const urgentCount = alerts.filter(a => a.urgent).length;
+                if (urgentCount > lastAlertCount) {
+                    playAlertSound();
+                }
+                lastAlertCount = urgentCount;
+
+            } catch (error) {
+                console.error('Feed Error:', error);
+                showError('⚠️ Kan meldingen niet laden. Controleer je internetverbinding.');
+            }
+        }
+
+        function displayAlerts(alerts) {
+            const container = document.getElementById('alerts-container');
+            container.innerHTML = '';
+
+            if (alerts.length === 0) {
+                container.innerHTML = '<div class="loading">✓ Geen meldingen op dit moment</div>';
+                document.getElementById('alert-count').textContent = '0 meldingen';
+                return;
+            }
+
+            alerts.forEach(alert => {
+                const card = document.createElement('div');
+                card.className = `alert-card ${alert.urgent ? 'urgent' : ''}`;
+                
+                const categoryColor = alert.urgent ? '#ff3333' : '#ff6b6b';
+                
+                card.innerHTML = `
+                    <div>
+                        <div style="display: flex; justify-content: space-between; align-items: start; margin-bottom: 10px; flex-wrap: wrap;">
+                            <div class="alert-title" style="flex: 1;">${alert.title}</div>
+                            <span class="category-badge" style="border-color: ${categoryColor}; color: ${categoryColor};">
+                                ${alert.category}
+                            </span>
+                        </div>
+                        <div class="alert-time">⏰ ${alert.time}</div>
+                        <div class="alert-location">${extractLocation(alert.description)}</div>
+                        <div class="alert-description">${cleanDescription(alert.description)}</div>
+                    </div>
+                `;
+                container.appendChild(card);
+            });
+
+            document.getElementById('alert-count').textContent = `${alerts.length} meldingen`;
+        }
+
+        function extractLocation(description) {
+            const cleanDesc = description.replace(/<[^>]*>/g, '');
+            const match = cleanDesc.match(/([A-Z][a-z]+(?:\s+[A-Z][a-z]+)*)/);
+            return match ? match[0] : 'Locatie onbekend';
+        }
+
+        function cleanDescription(description) {
+            const cleaned = description.replace(/<[^>]*>/g, '');
+            return cleaned.substring(0, 120) + (cleaned.length > 120 ? '...' : '');
+        }
+
+        function showError(message) {
+            document.getElementById('error-container').innerHTML = 
+                `<div class="error">${message}</div>`;
+        }
+
+        function clearError() {
+            document.getElementById('error-container').innerHTML = '';
+        }
+
+        function updateTime() {
+            const now = new Date();
+            document.getElementById('update-time').textContent = 
+                now.toLocaleTimeString('nl-NL', {
+                    hour: '2-digit',
+                    minute: '2-digit'
+                });
+        }
+
+        fetchAlertsWithCORS();
+        setInterval(fetchAlertsWithCORS, UPDATE_INTERVAL);
+        setInterval(updateTime, 1000);
+    </script>
+</body>
+</html>
