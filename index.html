@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>P2000 Monitor</title>
+    <title>Politie meldingen</title>
     <style>
         :root {
             --bg: #07090d;
@@ -16,10 +16,7 @@
             --prio1: #e5484d;
             --prio2: #f5a524;
             --prio3: #30a46c;
-            --brandweer: #e5484d;
-            --ambulance: #f5d90a;
             --politie: #3e8ff0;
-            --overig: #6b7280;
         }
         * { box-sizing: border-box; }
         html, body { height: 100%; }
@@ -45,19 +42,6 @@
             background: var(--panel);
             border-bottom: 0.2em solid var(--line);
         }
-        .brand { display: flex; align-items: center; gap: 1em; min-width: 0; }
-        .brand .logo {
-            display: grid; place-items: center;
-            width: 2.8em; height: 2.8em;
-            border-radius: 0.5em;
-            background: var(--prio1);
-            font-weight: 800; font-size: 1.1em;
-            letter-spacing: 0.02em;
-        }
-        .brand h1 { margin: 0; font-size: 2.1em; font-weight: 700; white-space: nowrap; }
-        .brand .sub { color: var(--muted); font-size: 1.05em; margin-top: 0.1em; }
-        .brand .sub b { color: var(--text); font-variant-numeric: tabular-nums; }
-
         .status {
             display: flex; align-items: center; gap: 0.6em;
             color: var(--muted); font-size: 1em; white-space: nowrap;
@@ -97,15 +81,15 @@
             display: flex; flex-direction: column;
             background: var(--panel);
             border: 0.12em solid var(--line);
-            border-left: 0.7em solid var(--overig);
+            border-left: 0.7em solid var(--politie);
             border-radius: 0.8em;
             padding: 1.6em 1.8em;
             overflow: hidden;
         }
         .hero.fresh { animation: pulse 1.6s ease-in-out infinite; }
         @keyframes pulse {
-            0%, 100% { box-shadow: 0 0 0 0 rgba(229, 72, 77, 0); }
-            50% { box-shadow: 0 0 2.5em 0.2em rgba(229, 72, 77, 0.45); }
+            0%, 100% { box-shadow: 0 0 0 0 rgba(62, 143, 240, 0); }
+            50% { box-shadow: 0 0 2.5em 0.2em rgba(62, 143, 240, 0.55); }
         }
         .hero .top { display: flex; align-items: center; gap: 0.8em; flex-wrap: wrap; }
         .hero .ago { margin-left: auto; color: var(--muted); font-size: 1.3em; font-variant-numeric: tabular-nums; }
@@ -141,12 +125,6 @@
         .badge.nieuw { background: #fff; color: #000; animation: blink 1s steps(2, start) infinite; }
         @keyframes blink { to { visibility: hidden; } }
 
-        .brandweer { border-left-color: var(--brandweer) !important; }
-        .ambulance { border-left-color: var(--ambulance) !important; }
-        .politie   { border-left-color: var(--politie) !important; }
-        .dienst.brandweer { color: var(--brandweer); }
-        .dienst.ambulance { color: var(--ambulance); }
-        .dienst.politie   { color: var(--politie); }
 
         /* ---------- Statistieken ---------- */
         .stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1.6vw; }
@@ -173,7 +151,7 @@
             gap: 0 1.1em;
             background: var(--panel);
             border: 0.12em solid var(--line);
-            border-left: 0.5em solid var(--overig);
+            border-left: 0.5em solid var(--politie);
             border-radius: 0.6em;
             padding: 0.85em 1.1em;
             flex-shrink: 0;
@@ -183,7 +161,6 @@
         .item .when .d { color: var(--muted); font-size: 0.95em; }
         .item .body { min-width: 0; }
         .item .row { display: flex; align-items: center; gap: 0.6em; margin-bottom: 0.3em; }
-        .item .row .dienst { font-weight: 600; font-size: 0.95em; text-transform: uppercase; letter-spacing: 0.06em; }
         .item .row .badge { font-size: 0.85em; padding: 0.2em 0.55em; }
         .item .txt {
             font-size: 1.3em; line-height: 1.3;
@@ -212,13 +189,6 @@
 </head>
 <body>
     <header>
-        <div class="brand">
-            <div class="logo">112</div>
-            <div>
-                <h1>P2000 Alarmeringen</h1>
-                <div class="sub">Capcode <b id="capcode">-</b></div>
-            </div>
-        </div>
         <div class="status">
             <span class="dot" id="dot"></span>
             <span id="statusTekst">Verbinden…</span>
@@ -231,7 +201,7 @@
 
     <main>
         <section class="col">
-            <div class="label">Laatste melding</div>
+            <div class="label">Laatste politiemelding</div>
             <article class="hero" id="hero">
                 <div class="empty">Meldingen ophalen…</div>
             </article>
@@ -244,7 +214,7 @@
 
         <section class="col">
             <div class="list-wrap">
-                <div class="label">Eerdere meldingen</div>
+                <div class="label">Eerdere politiemeldingen</div>
                 <div id="lijst"></div>
             </div>
         </section>
@@ -252,16 +222,14 @@
 
     <script>
         /* ================= Instellingen =================
-         * Aanpasbaar via de URL, bv. index.html?capcode=0127850&feed=https://...
+         * Alleen politie, capcode 0127850, via de alarmeringdroid-feed.
          */
-        const params = new URLSearchParams(location.search);
-        const CAPCODE = params.get('capcode') || '0127850';
-        const FEED_URL = params.get('feed') ||
-            'https://www.alarmeringdroid.nl/rss/a067947f';
+        const CAPCODE = '0127850';
+        const FEED_URL = 'https://www.alarmeringdroid.nl/rss/a067947f';
         const VERVERS_MS = 60 * 1000;          // nieuwe meldingen ophalen
         const NIEUW_MS = 15 * 60 * 1000;       // melding telt als "nieuw" (knipperend label)
         const SCROLL_MS = 10 * 1000;           // lijst doorbladeren
-        const CACHE_KEY = 'p2000-cache-' + CAPCODE + '-' + FEED_URL;
+        const CACHE_KEY = 'p2000-politie-' + CAPCODE;
 
         /* Een browser mag een feed van een andere site alleen lezen als die site dat toestaat (CORS).
          * Daarom proberen we een reeks routes; de route die werkt wordt onthouden en voortaan eerst gebruikt.
@@ -280,10 +248,9 @@
             { naam: 'cors.lol', url: u => 'https://api.cors.lol/?url=' + enc(u) },
             { naam: 'whateverorigin', url: u => 'https://whateverorigin.org/get?url=' + enc(u), lees: d => d.contents },
             { naam: 'rss2json', url: u => 'https://api.rss2json.com/v1/api.json?rss_url=' + enc(u), rss2json: true },
-        ].filter(r => !r.alleenViaServer || (/^https?:$/.test(location.protocol) && !params.get('feed')));
+        ].filter(r => !r.alleenViaServer || /^https?:$/.test(location.protocol));
 
         const $ = id => document.getElementById(id);
-        $('capcode').textContent = CAPCODE;
 
         let meldingen = [];
         let laatsteSucces = null;
@@ -428,18 +395,10 @@
         /* ================= Interpretatie ================= */
         function prio(tekst) {
             const t = ' ' + tekst.toUpperCase() + ' ';
-            if (/\b(P ?1|PRIO ?1|A1|A 1)\b/.test(t)) return { k: 'p1', l: 'PRIO 1' };
-            if (/\b(P ?2|PRIO ?2|A2|A 2)\b/.test(t)) return { k: 'p2', l: 'PRIO 2' };
-            if (/\b(P ?3|PRIO ?3|B1|B2|B 1|B 2)\b/.test(t)) return { k: 'p3', l: 'PRIO 3' };
+            if (/\b(P ?1|PRIO ?1)\b/.test(t)) return { k: 'p1', l: 'PRIO 1' };
+            if (/\b(P ?2|PRIO ?2)\b/.test(t)) return { k: 'p2', l: 'PRIO 2' };
+            if (/\b(P ?3|PRIO ?3)\b/.test(t)) return { k: 'p3', l: 'PRIO 3' };
             return null;
-        }
-
-        function dienst(tekst) {
-            const t = tekst.toLowerCase();
-            if (/brandweer|\bbrw\b|brand|\bbr\b|\bois\b|\bbos\b|\bwoningbrand\b|\bhv\b|\bdv\b|\bts\b/.test(t)) return { k: 'brandweer', l: 'Brandweer' };
-            if (/ambulance|\bambu\b|\bmmt\b|lifeliner|\ba[12]\b|\bb[12]\b/.test(t)) return { k: 'ambulance', l: 'Ambulance' };
-            if (/politie|\bpol\b/.test(t)) return { k: 'politie', l: 'Politie' };
-            return { k: '', l: 'Melding' };
         }
 
         // Laatste stuk van de tekst met een postcode/plaatsnaam, als die er in staat
@@ -488,18 +447,15 @@
             hero.className = 'hero';
 
             if (!meldingen.length) {
-                const leeg = el('div', 'empty', 'Geen recente meldingen voor capcode ' + CAPCODE);
+                const leeg = el('div', 'empty', 'Geen recente politiemeldingen');
                 hero.appendChild(leeg);
                 return;
             }
 
             const m = meldingen[0];
-            const ds = dienst(m.titel + ' ' + m.beschrijving);
-            if (ds.k) hero.classList.add(ds.k);
             if (Date.now() - m.tijd < NIEUW_MS) hero.classList.add('fresh');
 
             const top = el('div', 'top');
-            top.appendChild(el('span', 'badge dienst ' + ds.k, ds.l.toUpperCase()));
             badges(m, top);
             top.appendChild(el('span', 'ago', geleden(m.tijd)));
             hero.appendChild(top);
@@ -530,8 +486,7 @@
             }
 
             for (const m of rest) {
-                const ds = dienst(m.titel + ' ' + m.beschrijving);
-                const item = el('div', 'item ' + ds.k);
+                const item = el('div', 'item');
 
                 const when = el('div', 'when');
                 when.appendChild(el('div', 'h', fmtTijd(m.tijd)));
@@ -540,9 +495,8 @@
 
                 const body = el('div', 'body');
                 const row = el('div', 'row');
-                row.appendChild(el('span', 'dienst ' + ds.k, ds.l));
                 badges(m, row);
-                body.appendChild(row);
+                if (row.childElementCount) body.appendChild(row);
                 body.appendChild(el('div', 'txt', m.tekst || m.titel));
                 item.appendChild(body);
 

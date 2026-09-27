@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Kleine server voor het P2000-dashboard.
+"""Kleine server voor het politie-dashboard (capcode 0127850).
 
 Een browser mag de RSS-feed niet rechtstreeks lezen (CORS). Deze server haalt de
 feed zelf op en geeft hem door aan de pagina, zodat er geen proxies nodig zijn.
@@ -10,9 +10,7 @@ Gebruik (op een pc, laptop, NAS of Raspberry Pi in hetzelfde netwerk als de tv):
 
 Open daarna op de tv: http://<ip-adres-van-die-computer>:8000
 
-Instellingen via omgevingsvariabelen:
-    FEED_URL  de RSS-feed (standaard de alarmeringdroid-feed hieronder)
-    PORT      poort van de server (standaard 8000)
+Poort wijzigen kan met de omgevingsvariabele PORT (standaard 8000).
 """
 
 import os
@@ -22,7 +20,7 @@ import time
 import urllib.request
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 
-FEED_URL = os.environ.get("FEED_URL", "https://www.alarmeringdroid.nl/rss/a067947f")
+FEED_URL = "https://www.alarmeringdroid.nl/rss/a067947f"
 PORT = int(os.environ.get("PORT", "8000"))
 CACHE_SECONDEN = 20
 MAP = os.path.dirname(os.path.abspath(__file__))
@@ -87,6 +85,6 @@ def lokaal_ip():
 
 
 if __name__ == "__main__":
-    print(f"P2000-dashboard draait. Open op de tv: http://{lokaal_ip()}:{PORT}")
+    print(f"Politie-dashboard draait. Open op de tv: http://{lokaal_ip()}:{PORT}")
     print(f"Feed: {FEED_URL}  (stoppen met Ctrl+C)")
     ThreadingHTTPServer(("0.0.0.0", PORT), Handler).serve_forever()
