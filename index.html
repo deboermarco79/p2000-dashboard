@@ -192,8 +192,9 @@
          * Capcodes met een eigen label en kleur, als hun nummer in een melding staat.
          * Alle meldingen uit beide feeds (zie FEEDS) worden getoond, behalve ambulancemeldingen (zie isAmbulance).
          */
+        // 0127850 (politie-persalarm) staat er bewust niet meer bij: dat capcode-label zei
+        // ook al gewoon "Politie", identiek aan het bronlabel ernaast — dat gaf "Politie Politie".
         const CAPCODES = [
-            { code: '0127850', naam: 'Politie', kleur: '#3e8ff0' },
             { code: '0104972', naam: 'VR Zaanstreek-Waterland', kleur: '#a78bfa' },
             { code: '0127185', naam: 'VR Kennemerland', kleur: '#2dd4bf' },
             { code: '0205625', naam: 'VR Noord-Holland-Noord', kleur: '#f472b6' },
