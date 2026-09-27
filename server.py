@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Kleine server voor het politie-dashboard (capcode 0127850).
+"""Kleine server voor het persalarm-dashboard.
 
 Een browser mag de RSS-feed niet rechtstreeks lezen (CORS). Deze server haalt de
 feed zelf op en geeft hem door aan de pagina, zodat er geen proxies nodig zijn.
@@ -20,7 +20,7 @@ import time
 import urllib.request
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 
-FEED_URL = "https://www.alarmeringdroid.nl/rss/7738690e"
+FEED_URL = "https://alarmeringen.nl/feeds/user/e3826aac-12d9-4685-be9e-e30a469de97c.rss"
 PORT = int(os.environ.get("PORT", "8000"))
 CACHE_SECONDEN = 20
 MAP = os.path.dirname(os.path.abspath(__file__))
@@ -85,6 +85,6 @@ def lokaal_ip():
 
 
 if __name__ == "__main__":
-    print(f"Politie-dashboard draait. Open op de tv: http://{lokaal_ip()}:{PORT}")
+    print(f"Persalarm-dashboard draait. Open op de tv: http://{lokaal_ip()}:{PORT}")
     print(f"Feed: {FEED_URL}  (stoppen met Ctrl+C)")
     ThreadingHTTPServer(("0.0.0.0", PORT), Handler).serve_forever()

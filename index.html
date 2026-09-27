@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Politie meldingen</title>
+    <title>Persalarm</title>
     <style>
         :root {
             --bg: #07090d;
@@ -81,7 +81,7 @@
             display: flex; flex-direction: column;
             background: var(--panel);
             border: 0.12em solid var(--line);
-            border-left: 0.7em solid var(--politie);
+            border-left: 0.7em solid var(--cap, var(--politie));
             border-radius: 0.8em;
             padding: 1.6em 1.8em;
             overflow: hidden;
@@ -91,7 +91,7 @@
             0%, 100% { box-shadow: 0 0 0 0 rgba(62, 143, 240, 0); }
             50% { box-shadow: 0 0 2.5em 0.2em rgba(62, 143, 240, 0.55); }
         }
-        .hero .top { display: flex; align-items: center; gap: 0.8em; flex-wrap: wrap; }
+        .hero .top { display: flex; align-items: center; gap: 0.6em 0.8em; flex-wrap: wrap; }
         .hero .ago { margin-left: auto; color: var(--muted); font-size: 1.3em; font-variant-numeric: tabular-nums; }
         .hero .msg {
             font-size: 2.6em;
@@ -122,6 +122,7 @@
         .badge.p1 { background: var(--prio1); }
         .badge.p2 { background: var(--prio2); color: #1a1200; }
         .badge.p3 { background: var(--prio3); }
+        .badge.cap { background: transparent; color: var(--cap); box-shadow: inset 0 0 0 0.12em var(--cap); }
         .badge.nieuw { background: #fff; color: #000; animation: blink 1s steps(2, start) infinite; }
         @keyframes blink { to { visibility: hidden; } }
 
@@ -151,7 +152,7 @@
             gap: 0 1.1em;
             background: var(--panel);
             border: 0.12em solid var(--line);
-            border-left: 0.5em solid var(--politie);
+            border-left: 0.5em solid var(--cap, var(--politie));
             border-radius: 0.6em;
             padding: 0.85em 1.1em;
             flex-shrink: 0;
@@ -160,7 +161,7 @@
         .item .when .h { font-size: 1.6em; font-weight: 700; line-height: 1.1; }
         .item .when .d { color: var(--muted); font-size: 0.95em; }
         .item .body { min-width: 0; }
-        .item .row { display: flex; align-items: center; gap: 0.6em; margin-bottom: 0.3em; }
+        .item .row { display: flex; align-items: center; flex-wrap: wrap; gap: 0.4em 0.6em; margin-bottom: 0.3em; }
         .item .row .badge { font-size: 0.85em; padding: 0.2em 0.55em; }
         .item .txt {
             font-size: 1.3em; line-height: 1.3;
@@ -201,7 +202,7 @@
 
     <main>
         <section class="col">
-            <div class="label">Laatste politiemelding</div>
+            <div class="label">Laatste melding</div>
             <article class="hero" id="hero">
                 <div class="empty">Meldingen ophalen…</div>
             </article>
@@ -214,7 +215,7 @@
 
         <section class="col">
             <div class="list-wrap">
-                <div class="label">Eerdere politiemeldingen</div>
+                <div class="label">Eerdere meldingen</div>
                 <div id="lijst"></div>
             </div>
         </section>
@@ -222,14 +223,19 @@
 
     <script>
         /* ================= Instellingen =================
-         * Alleen politie (capcode 0127850) uit de alarmeringdroid-feed; ambulance wordt weggefilterd.
+         * Persalarmen uit de persoonlijke feed van alarmeringen.nl, voor deze capcodes:
          */
-        const CAPCODE = '0127850';
-        const FEED_URL = 'https://www.alarmeringdroid.nl/rss/7738690e';
+        const CAPCODES = [
+            { code: '0127850', naam: 'Politie Noord-Holland · Persalarm', kleur: '#3e8ff0' },
+            { code: '0104972', naam: 'Woordvoerder VR Zaanstreek-Waterland', kleur: '#a78bfa' },
+            { code: '0127185', naam: 'Woordvoerder VR Kennemerland', kleur: '#2dd4bf' },
+            { code: '0205625', naam: 'Woordvoerder VR Noord-Holland-Noord', kleur: '#f472b6' },
+        ];
+        const FEED_URL = 'https://alarmeringen.nl/feeds/user/e3826aac-12d9-4685-be9e-e30a469de97c.rss';
         const VERVERS_MS = 60 * 1000;          // nieuwe meldingen ophalen
         const NIEUW_MS = 15 * 60 * 1000;       // melding telt als "nieuw" (knipperend label)
         const SCROLL_MS = 10 * 1000;           // lijst doorbladeren
-        const CACHE_KEY = 'p2000-politie-' + CAPCODE + '-' + FEED_URL;
+        const CACHE_KEY = 'p2000-persalarm-' + FEED_URL;
 
         /* Een browser mag een feed van een andere site alleen lezen als die site dat toestaat (CORS).
          * Daarom proberen we een reeks routes; de route die werkt wordt onthouden en voortaan eerst gebruikt.
@@ -365,28 +371,6 @@
             });
         }
 
-        /* Is dit een politiemelding?
-         * - Heeft de feed een categorie/dienst, dan is die leidend.
-         * - Anders: ambulance herkennen aan hun urgentiecodes (A1, A2, B1, B2) en woorden als
-         *   ambulance/ambu/MKA/lifeliner; politie aan P 1-3 / Prio 1-3 of het woord politie.
-         */
-        const AMBULANCE = /\b(ambulance|ambu|mka|mmt|lifeliner|traumaheli|zorgambulance)\b|\b[AB] ?[12]\b/i;
-        const BRANDWEER = /\bbrandweer\b|\bbrw\b/i;
-        const POLITIE = /\bpolitie\b|\bpol\b|\bP ?[123]\b|\bprio ?[123]\b/i;
-        function isPolitie(m) {
-            const cat = m.categorie || '';
-            if (/politie/i.test(cat)) return true;
-            if (AMBULANCE.test(cat) || BRANDWEER.test(cat)) return false;
-
-            const t = m.titel + ' ' + m.beschrijving;
-            if (/\bpolitie\b/i.test(t)) return true;
-            // Begint de melding met een ambulance-urgentiecode, dan is het ambulance
-            if (/^\s*[AB] ?[12]\b/i.test(m.titel)) return false;
-            if (AMBULANCE.test(t) && !POLITIE.test(m.titel)) return false;
-            if (BRANDWEER.test(t)) return false;
-            return true;
-        }
-
         // Ruwe items omzetten naar meldingen voor het scherm
         function verwerk(ruw) {
             const alle = ruw.map(r => {
@@ -402,23 +386,24 @@
                     categorie: stripHtml(r.categorie),
                     tijd: tijd ?? Date.now(),
                     geenDatum: tijd == null,
+                    capcodes: welkeCapcodes(titel + ' ' + beschrijving + ' ' + r.categorie),
                 };
             });
 
-            // Alleen politie: ambulance (en brandweer) eruit
-            const politie = alle.filter(isPolitie);
-
-            // Toon meldingen voor onze capcode (ook zonder voorloopnul). Staat er geen capcode
-            // in een item, dan is de persoonlijke feed al gefilterd en tonen we het gewoon.
-            const kort = CAPCODE.replace(/^0+/, '');
-            const gefilterd = politie.filter(m => {
-                const t = m.titel + ' ' + m.beschrijving;
-                return t.includes(CAPCODE) || new RegExp('\\b' + kort + '\\b').test(t) || !/\b\d{7}\b/.test(t);
-            });
-            // Filter houdt niets over? Dan is het een feed voor deze capcode met een andere
-            // notatie: toon dan alles in plaats van een leeg scherm.
-            return (gefilterd.length ? gefilterd : politie).sort((a, b) => b.tijd - a.tijd);
+            // Alleen meldingen voor onze capcodes. Staat er geen enkele capcode in een item,
+            // dan is de persoonlijke feed al gefilterd en tonen we het gewoon.
+            const gefilterd = alle.filter(m => m.capcodes.length || !/\b\d{7}\b/.test(m.titel + ' ' + m.beschrijving));
+            // Filter houdt niets over? Dan noteert de feed capcodes anders: liever alles dan een leeg scherm.
+            return (gefilterd.length ? gefilterd : alle).sort((a, b) => b.tijd - a.tijd);
         }
+
+        // Welke van onze capcodes staan in de tekst (ook zonder voorloopnul)?
+        function welkeCapcodes(tekst) {
+            return CAPCODES
+                .filter(c => new RegExp('\\b0*' + c.code.replace(/^0+/, '') + '\\b').test(tekst))
+                .map(c => c.code);
+        }
+        const capInfo = code => CAPCODES.find(c => c.code === code);
 
         /* ================= Interpretatie ================= */
         function prio(tekst) {
@@ -464,9 +449,22 @@
         }
 
         function badges(m, parent) {
+            for (const code of m.capcodes || []) {
+                const c = capInfo(code);
+                if (!c) continue;
+                const b = el('span', 'badge cap', c.naam);
+                b.style.setProperty('--cap', c.kleur);
+                parent.appendChild(b);
+            }
             const p = prio(m.titel);
             if (p) parent.appendChild(el('span', 'badge ' + p.k, p.l));
             if (Date.now() - m.tijd < NIEUW_MS) parent.appendChild(el('span', 'badge nieuw', 'NIEUW'));
+        }
+
+        // Randkleur van de (eerste) capcode van de melding
+        function kleur(e, m) {
+            const c = capInfo((m.capcodes || [])[0]);
+            if (c) e.style.setProperty('--cap', c.kleur);
         }
 
         function renderHero() {
@@ -475,17 +473,17 @@
             hero.className = 'hero';
 
             if (!meldingen.length) {
-                const leeg = el('div', 'empty', 'Geen recente politiemeldingen');
+                const leeg = el('div', 'empty', 'Geen recente meldingen');
                 hero.appendChild(leeg);
                 return;
             }
 
             const m = meldingen[0];
+            kleur(hero, m);
             if (Date.now() - m.tijd < NIEUW_MS) hero.classList.add('fresh');
 
             const top = el('div', 'top');
             badges(m, top);
-            top.appendChild(el('span', 'ago', geleden(m.tijd)));
             hero.appendChild(top);
 
             hero.appendChild(el('div', 'msg', m.tekst || m.titel));
@@ -497,6 +495,7 @@
                 meta.appendChild(d);
             };
             blok('Tijd', fmtTijd(m.tijd));
+            blok('Geleden', geleden(m.tijd));
             blok('Datum', fmtDag(m.tijd));
             const loc = locatie(m.tekst || m.titel);
             if (loc) blok('Locatie', loc);
@@ -515,6 +514,7 @@
 
             for (const m of rest) {
                 const item = el('div', 'item');
+                kleur(item, m);
 
                 const when = el('div', 'when');
                 when.appendChild(el('div', 'h', fmtTijd(m.tijd)));
