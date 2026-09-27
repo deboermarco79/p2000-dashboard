@@ -236,9 +236,9 @@
             { code: '0205625', naam: 'Woordvoerder VR Noord-Holland-Noord', kleur: '#f472b6' },
         ];
         // Beide feeds worden opgehaald en samengevoegd; valt er één uit, dan komt de andere nog door.
-        // 'filter': alleen meldingen voor onze capcodes tonen. Zonder filter wordt de hele feed getoond.
+        // Alles uit beide feeds wordt getoond; dubbele meldingen worden samengevoegd.
         const FEEDS = [
-            { naam: 'alarmeringen.nl', url: 'https://alarmeringen.nl/feeds/user/e3826aac-12d9-4685-be9e-e30a469de97c.rss', filter: true },
+            { naam: 'alarmeringen.nl', url: 'https://alarmeringen.nl/feeds/user/e3826aac-12d9-4685-be9e-e30a469de97c.rss' },
             { naam: 'alarmeringdroid', url: 'https://www.alarmeringdroid.nl/rss/7738690e' },
         ];
         const VERVERS_MS = 60 * 1000;          // nieuwe meldingen ophalen
@@ -384,7 +384,7 @@
         }
 
         // Ruwe items omzetten naar meldingen voor het scherm
-        function verwerk(ruw, feed) {
+        function verwerk(ruw) {
             const alle = ruw.map(r => {
                 const beschrijving = stripHtml(r.beschrijving);
                 const titel = stripHtml(r.titel) || beschrijving;
@@ -402,12 +402,7 @@
                 };
             });
 
-            if (!feed.filter) return alle;
-
-            // Persoonlijke feed: staat er geen enkele capcode in een item, dan is de feed al gefilterd.
-            const gefilterd = alle.filter(m => m.capcodes.length || !/\b\d{7}\b/.test(m.titel + ' ' + m.beschrijving));
-            // Filter houdt niets over? Dan noteert de feed capcodes anders: liever alles dan een leeg scherm.
-            return gefilterd.length ? gefilterd : alle;
+            return alle;
         }
 
         /* Dezelfde melding kan in beide feeds staan (met een ander id).
@@ -638,7 +633,7 @@
                     ? gelukt.push({ feed: FEEDS[i], ...res.value })
                     : mislukt.push(FEEDS[i].naam + ' — ' + res.reason.message));
                 if (!gelukt.length) throw new Error(mislukt.join('\n'));
-                const nieuw = gelukt.flatMap(g => verwerk(g.items, g.feed));
+                const nieuw = gelukt.flatMap(g => verwerk(g.items));
                 // Samenvoegen met wat we al hadden, zodat de historie niet verdwijnt als de feed kort is
                 const bekend = new Map(meldingen.map(m => [m.id, m]));
                 nieuw.forEach(m => {
