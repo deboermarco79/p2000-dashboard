@@ -201,22 +201,23 @@
             { code: '0127185', naam: 'Woordvoerder VR Kennemerland', kleur: '#2dd4bf' },
             { code: '0205625', naam: 'Woordvoerder VR Noord-Holland-Noord', kleur: '#f472b6' },
         ];
-        // Beide feeds worden opgehaald en samengevoegd; valt er één uit, dan komt de andere nog door.
-        // Beide feeds worden samengevoegd; dezelfde melding uit beide feeds wordt één keer getoond.
+        // Alle feeds worden opgehaald en samengevoegd; valt er één uit, dan komen de andere nog door.
+        // Dezelfde melding uit meerdere feeds wordt één keer getoond, met alle bronnen erbij.
+        // 'dienst' + 'kleur': het label dat bij elke melding uit die feed komt te staan.
         const FEEDS = [
-            { naam: 'alarmeringen.nl', url: 'https://alarmeringen.nl/feeds/user/e3826aac-12d9-4685-be9e-e30a469de97c.rss' },
-            { naam: 'alarmeringdroid', url: 'https://www.alarmeringdroid.nl/rss/7738690e' },
-            { naam: 'alarmeringen.nl-2', url: 'https://alarmeringen.nl/feeds/user/edc2a4dd-b5ed-430c-85a7-7caf1982545f.rss' },
-            { naam: 'voorlichter Zaanstreek-Waterland', url: 'https://www.alarmeringdroid.nl/rss/5ef7e920' },
-            { naam: 'voorlichter Kennemerland', url: 'https://www.alarmeringdroid.nl/rss/132e8974' },
-            { naam: 'voorlichter Noord-Holland-Noord', url: 'https://www.alarmeringdroid.nl/rss/6fa78810' },
-            { naam: 'alarmeringdroid politie (2)', url: 'https://www.alarmeringdroid.nl/rss/a067947f' },
+            { naam: 'alarmeringen.nl', url: 'https://alarmeringen.nl/feeds/user/e3826aac-12d9-4685-be9e-e30a469de97c.rss', dienst: 'Politie', kleur: '#3e8ff0' },
+            { naam: 'alarmeringdroid', url: 'https://www.alarmeringdroid.nl/rss/7738690e', dienst: 'Politie', kleur: '#3e8ff0' },
+            { naam: 'alarmeringen.nl-2', url: 'https://alarmeringen.nl/feeds/user/edc2a4dd-b5ed-430c-85a7-7caf1982545f.rss', dienst: 'Politie', kleur: '#3e8ff0' },
+            { naam: 'voorlichter Zaanstreek-Waterland', url: 'https://www.alarmeringdroid.nl/rss/5ef7e920', dienst: 'Voorlichter van dienst Zaanstreek-Waterland', kleur: '#a78bfa' },
+            { naam: 'voorlichter Kennemerland', url: 'https://www.alarmeringdroid.nl/rss/132e8974', dienst: 'Voorlichter van dienst Kennemerland', kleur: '#2dd4bf' },
+            { naam: 'voorlichter Noord-Holland-Noord', url: 'https://www.alarmeringdroid.nl/rss/6fa78810', dienst: 'Voorlichter van dienst Noord-Holland-Noord', kleur: '#f472b6' },
+            { naam: 'alarmeringdroid politie (2)', url: 'https://www.alarmeringdroid.nl/rss/a067947f', dienst: 'Politie', kleur: '#3e8ff0' },
         ];
         const VERVERS_MS = 60 * 1000;          // nieuwe meldingen ophalen
         const OPNIEUW_MS = 20 * 1000;          // na een mislukte poging sneller opnieuw proberen
         const HERLAAD_MS = 60 * 1000;          // hele pagina opnieuw laden (Chromecast/tv: blijft zo actueel)
         const NIEUW_MS = 15 * 60 * 1000;       // melding telt als "nieuw" (knipperend label)
-        const CACHE_KEY = 'p2000-persalarm-v9';
+        const CACHE_KEY = 'p2000-persalarm-v10';
         // Diagnose: open de pagina met ?debug om per melding te zien of en waarom hij (niet) getoond wordt
         const DEBUG = /[?&]debug\b/.test(location.search);
         const TZ = 'Europe/Amsterdam';          // tijden altijd in Nederlandse tijd, ook als de Chromecast op UTC staat
@@ -382,15 +383,18 @@
         }
 
         // Ruwe items omzetten naar meldingen voor het scherm
-        function verwerk(ruw, bron) {
+        function verwerk(ruw, feed) {
             return ruw.map(r => {
                 const beschrijving = stripHtml(r.beschrijving);
                 const titel = stripHtml(r.titel) || beschrijving;
                 const tijd = leesDatum(r.ruweDatum, titel, beschrijving);
                 return {
                     // id per feed: twee feeds kunnen hetzelfde nummer voor verschillende meldingen gebruiken
-                    id: bron + ':' + (r.id || titel + (r.ruweDatum || '')),
-                    bron,
+                    id: feed.naam + ':' + (r.id || titel + (r.ruweDatum || '')),
+                    bron: feed.naam,
+                    // Welke dienst(en) deze melding aanleverden ("Politie", "Voorlichter van dienst ..."),
+                    // met kleur. Bij dedup worden de bronnen van meerdere feeds samengevoegd (zie ontdubbel).
+                    bronnen: [{ naam: feed.dienst, kleur: feed.kleur }],
                     titel,
                     // Tekst voor op het scherm: zonder de 7-cijferige capcodes
                     tekst: titel.replace(/\b\d{7}\b/g, '').replace(/\s+/g, ' ').trim() || titel,
@@ -417,8 +421,10 @@
                     Math.min(x.length, y.length) >= 0.8 * Math.max(x.length, y.length) && (x.includes(y) || y.includes(x)));
                 const dubbel = k.length >= 4 && uniek.find(u => Math.abs(u.tijd - m.tijd) < 10 * 60 * 1000 && lijkt(u.sleutel, k));
                 if (dubbel) {
-                    // Capcodes van beide samenvoegen
+                    // Capcodes en bronnen van beide samenvoegen (geen dubbele bronnaam, bv. 2x "Politie")
                     dubbel.capcodes = [...new Set([...(dubbel.capcodes || []), ...(m.capcodes || [])])];
+                    const bekendeNamen = new Set((dubbel.bronnen || []).map(b => b.naam));
+                    for (const b of m.bronnen || []) if (!bekendeNamen.has(b.naam)) { dubbel.bronnen.push(b); bekendeNamen.add(b.naam); }
                 } else {
                     uniek.push({ ...m, sleutel: k });
                 }
@@ -483,12 +489,20 @@
             return e;
         }
 
-        // Capcode-namen als gekleurde tekst
+        // Bron van de melding als gekleurde tekst ("Politie", "Voorlichter van dienst ...")
+        function bronLabels(m, parent) {
+            for (const b of m.bronnen || []) {
+                const e = el('span', 'cap bron', b.naam);
+                e.style.setProperty('--cap', b.kleur);
+                parent.appendChild(e);
+            }
+        }
+        // Capcode-namen als gekleurde tekst (zeldzaam: de capcode moet toevallig in de tekst staan)
         function capLabels(m, parent) {
             for (const code of m.capcodes || []) {
                 const c = capInfo(code);
                 if (!c) continue;
-                const e = el('span', 'cap', c.naam);
+                const e = el('span', 'cap capcode', c.naam);
                 e.style.setProperty('--cap', c.kleur);
                 parent.appendChild(e);
             }
@@ -497,7 +511,8 @@
 
         // Randkleur van de (eerste) capcode van de melding
         function kleur(e, m) {
-            const c = capInfo((m.capcodes || [])[0]);
+            // Capcode is specifieker als die er toevallig is; anders de kleur van de bron(nen)
+            const c = capInfo((m.capcodes || [])[0]) || (m.bronnen || [])[0];
             if (c) e.style.setProperty('--cap', c.kleur);
         }
 
@@ -527,6 +542,7 @@
             const p = prio(m.titel);
             if (p) tags.appendChild(el('span', 'badge ' + p.k, p.l));
             if (isNieuw(m)) tags.appendChild(el('span', 'badge nieuw', 'NIEUW'));
+            bronLabels(m, tags);
             capLabels(m, tags);
             if (tags.childElementCount) inhoud.appendChild(tags);
             inhoud.appendChild(el('div', 'msg', m.tekst || m.titel));
@@ -575,6 +591,7 @@
                 body.appendChild(el('div', 'txt', m.tekst || m.titel));
                 rij.appendChild(body);
                 const caps = el('div', 'caps');
+                bronLabels(m, caps);
                 capLabels(m, caps);
                 rij.appendChild(caps);
                 rij.setAttribute('data-id', m.id);
@@ -672,7 +689,7 @@
                     ? gelukt.push({ feed: FEEDS[i], ...res.value })
                     : mislukt.push(FEEDS[i].naam + ' — ' + res.reason.message));
                 if (!gelukt.length) throw new Error(mislukt.join('\n'));
-                const alleNieuw = gelukt.flatMap(g => verwerk(g.items, g.feed.naam));
+                const alleNieuw = gelukt.flatMap(g => verwerk(g.items, g.feed));
                 const nieuw = alleNieuw.filter(m => !isAmbulance(m));
                 laatsteRonde = { gelukt, mislukt, alle: alleNieuw };
                 // Samenvoegen met wat we al hadden, zodat de historie niet verdwijnt als de feed kort is
