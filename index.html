@@ -227,7 +227,7 @@
 
     <script>
         /* ================= Instellingen =================
-         * Persalarmen uit de persoonlijke feed van alarmeringen.nl, voor deze capcodes:
+         * Persalarmen voor deze capcodes, uit twee feeds tegelijk (zie FEEDS):
          */
         const CAPCODES = [
             { code: '0127850', naam: 'Politie Noord-Holland · Persalarm', kleur: '#3e8ff0' },
@@ -235,11 +235,16 @@
             { code: '0127185', naam: 'Woordvoerder VR Kennemerland', kleur: '#2dd4bf' },
             { code: '0205625', naam: 'Woordvoerder VR Noord-Holland-Noord', kleur: '#f472b6' },
         ];
-        const FEED_URL = 'https://alarmeringen.nl/feeds/user/e3826aac-12d9-4685-be9e-e30a469de97c.rss';
+        // Beide feeds worden opgehaald en samengevoegd; valt er één uit, dan komt de andere nog door.
+        // 'gemengd': de feed bevat ook andere diensten (ambulance) die eruit gefilterd moeten worden.
+        const FEEDS = [
+            { naam: 'alarmeringen.nl', url: 'https://alarmeringen.nl/feeds/user/e3826aac-12d9-4685-be9e-e30a469de97c.rss' },
+            { naam: 'alarmeringdroid', url: 'https://www.alarmeringdroid.nl/rss/7738690e', gemengd: true },
+        ];
         const VERVERS_MS = 60 * 1000;          // nieuwe meldingen ophalen
         const OPNIEUW_MS = 20 * 1000;          // na een mislukte poging sneller opnieuw proberen
         const NIEUW_MS = 15 * 60 * 1000;       // melding telt als "nieuw" (knipperend label)
-        const CACHE_KEY = 'p2000-persalarm-' + FEED_URL;
+        const CACHE_KEY = 'p2000-persalarm-v2';
 
         /* Een browser mag een feed van een andere site alleen lezen als die site dat toestaat (CORS).
          * Daarom proberen we een reeks routes; de route die werkt wordt onthouden en voortaan eerst gebruikt.
@@ -249,7 +254,7 @@
          */
         const enc = encodeURIComponent;
         const routes = [
-            { naam: 'eigen server', url: () => 'feed', alleenViaServer: true },
+            { naam: 'eigen server', url: (u, i) => 'feed?bron=' + i, alleenViaServer: true },
             { naam: 'rechtstreeks', url: u => u },
             { naam: 'allorigins', url: u => 'https://api.allorigins.win/raw?url=' + enc(u) },
             { naam: 'allorigins-json', url: u => 'https://api.allorigins.win/get?url=' + enc(u), lees: d => d.contents },
@@ -276,16 +281,19 @@
         setInterval(tik, 1000);
 
         /* ================= Ophalen ================= */
-        const ROUTE_KEY = 'p2000-route-' + FEED_URL;
-        let voorkeur = (() => { try { return localStorage.getItem(ROUTE_KEY); } catch (e) { return null; } })();
+        // Per feed onthouden welke route werkte
+        FEEDS.forEach(f => {
+            f.routeKey = 'p2000-route-' + f.url;
+            try { f.voorkeur = localStorage.getItem(f.routeKey); } catch (e) { f.voorkeur = null; }
+        });
 
-        async function probeer(route) {
+        async function probeer(route, feed, i) {
             const ctrl = new AbortController();
             const timer = setTimeout(() => ctrl.abort(), 8000);
             try {
-                let url = route.url(FEED_URL);
+                let url = route.url(feed.url, i);
                 // Cache-buster alleen op proxy-adressen, niet op de feed zelf
-                if (url !== FEED_URL) url += (url.includes('?') ? '&' : '?') + '_t=' + Date.now();
+                if (url !== feed.url) url += (url.includes('?') ? '&' : '?') + '_t=' + Date.now();
                 const res = await fetch(url, { cache: 'no-store', signal: ctrl.signal });
                 if (!res.ok) throw new Error('HTTP ' + res.status);
 
@@ -310,23 +318,23 @@
             }
         }
 
-        async function haalFeed() {
-            const volgorde = [...routes].sort((a, b) => (b.naam === voorkeur) - (a.naam === voorkeur));
+        async function haalFeed(feed, i) {
+            const volgorde = [...routes].sort((a, b) => (b.naam === feed.voorkeur) - (a.naam === feed.voorkeur));
             const fouten = [];
             for (const route of volgorde) {
                 try {
-                    const items = await probeer(route);
-                    if (route.naam !== voorkeur) {
-                        voorkeur = route.naam;
-                        try { localStorage.setItem(ROUTE_KEY, voorkeur); } catch (e) { /* geen opslag */ }
+                    const items = await probeer(route, feed, i);
+                    if (route.naam !== feed.voorkeur) {
+                        feed.voorkeur = route.naam;
+                        try { localStorage.setItem(feed.routeKey, route.naam); } catch (e) { /* geen opslag */ }
                     }
                     return { items, route: route.naam };
                 } catch (e) {
-                    console.warn('Route mislukt:', route.naam, e.message);
+                    console.warn(feed.naam, 'route mislukt:', route.naam, e.message);
                     fouten.push(route.naam + ': ' + e.message);
                 }
             }
-            throw new Error('Feed niet bereikbaar. ' + fouten.join(' · '));
+            throw new Error(fouten.join(' · '));
         }
 
         function stripHtml(html) {
@@ -376,7 +384,7 @@
         }
 
         // Ruwe items omzetten naar meldingen voor het scherm
-        function verwerk(ruw) {
+        function verwerk(ruw, feed) {
             const alle = ruw.map(r => {
                 const beschrijving = stripHtml(r.beschrijving);
                 const titel = stripHtml(r.titel) || beschrijving;
@@ -394,11 +402,57 @@
                 };
             });
 
-            // Alleen meldingen voor onze capcodes. Staat er geen enkele capcode in een item,
-            // dan is de persoonlijke feed al gefilterd en tonen we het gewoon.
+            // Meldingen met een van onze capcodes altijd tonen.
+            if (feed.gemengd) {
+                // Gemengde feed: zonder capcode alleen politie tonen (ambulance eruit), geen terugval.
+                return alle.filter(m => m.capcodes.length || (!/\b\d{7}\b/.test(m.titel + ' ' + m.beschrijving) && isPolitie(m)));
+            }
+            // Persoonlijke feed: staat er geen enkele capcode in een item, dan is de feed al gefilterd.
             const gefilterd = alle.filter(m => m.capcodes.length || !/\b\d{7}\b/.test(m.titel + ' ' + m.beschrijving));
             // Filter houdt niets over? Dan noteert de feed capcodes anders: liever alles dan een leeg scherm.
-            return (gefilterd.length ? gefilterd : alle).sort((a, b) => b.tijd - a.tijd);
+            return gefilterd.length ? gefilterd : alle;
+        }
+
+        /* Is dit een politiemelding? (voor de gemengde alarmeringdroid-feed)
+         * - Heeft de feed een categorie/dienst, dan is die leidend.
+         * - Anders: ambulance herkennen aan hun urgentiecodes (A1, A2, B1, B2) en woorden als
+         *   ambulance/ambu/MKA/lifeliner; politie aan P 1-3 / Prio 1-3 of het woord politie.
+         */
+        const AMBULANCE = /\b(ambulance|ambu|mka|mmt|lifeliner|traumaheli|zorgambulance)\b|\b[AB] ?[12]\b/i;
+        const BRANDWEER = /\bbrandweer\b|\bbrw\b/i;
+        const POLITIE = /\bpolitie\b|\bpol\b|\bP ?[123]\b|\bprio ?[123]\b/i;
+        function isPolitie(m) {
+            const cat = m.categorie || '';
+            if (/politie/i.test(cat)) return true;
+            if (AMBULANCE.test(cat) || BRANDWEER.test(cat)) return false;
+
+            const t = m.titel + ' ' + m.beschrijving;
+            if (/\bpolitie\b/i.test(t)) return true;
+            // Begint de melding met een ambulance-urgentiecode, dan is het ambulance
+            if (/^\s*[AB] ?[12]\b/i.test(m.titel)) return false;
+            if (AMBULANCE.test(t) && !POLITIE.test(m.titel)) return false;
+            if (BRANDWEER.test(t)) return false;
+            return true;
+        }
+
+        /* Dezelfde melding kan in beide feeds staan (met een ander id).
+         * Zelfde tekst (zonder capcodes, spaties en leestekens) binnen 5 minuten = dezelfde melding.
+         */
+        const sleutel = m => (m.tekst || m.titel).toLowerCase().replace(/\b\d{7}\b/g, '').replace(/[^a-z0-9]/g, '');
+        function ontdubbel(lijst) {
+            const uniek = [];
+            for (const m of [...lijst].sort((a, b) => b.tijd - a.tijd)) {
+                const k = sleutel(m);
+                const dubbel = uniek.find(u => Math.abs(u.tijd - m.tijd) < 5 * 60 * 1000 &&
+                    (u.sleutel === k || (Math.min(k.length, u.sleutel.length) >= 15 && (u.sleutel.startsWith(k) || k.startsWith(u.sleutel)))));
+                if (dubbel) {
+                    // Capcodes van beide samenvoegen
+                    dubbel.capcodes = [...new Set([...(dubbel.capcodes || []), ...(m.capcodes || [])])];
+                } else {
+                    uniek.push({ ...m, sleutel: k });
+                }
+            }
+            return uniek;
         }
 
         // Welke van onze capcodes staan in de tekst (ook zonder voorloopnul)?
@@ -562,6 +616,7 @@
             if (!fout) {
                 dot.className = 'dot ok';
                 $('statusTekst').textContent = 'Live · bijgewerkt ' + fmtTijd(laatsteSucces) + (route ? ' · via ' + route : '');
+                if (detail) $('statusDetail').textContent = detail;   // één van de feeds faalt
                 return;
             }
             dot.className = laatsteSucces ? 'dot warn' : 'dot err';
@@ -600,10 +655,15 @@
         async function ververs() {
             if (bezig) return;           // vorige poging loopt nog
             bezig = true;
-            let gelukt = true;
+            let ok = true;
             try {
-                const { items, route } = await haalFeed();
-                const nieuw = verwerk(items);
+                const resultaten = await Promise.allSettled(FEEDS.map(haalFeed));
+                const gelukt = [], mislukt = [];
+                resultaten.forEach((res, i) => res.status === 'fulfilled'
+                    ? gelukt.push({ feed: FEEDS[i], ...res.value })
+                    : mislukt.push(FEEDS[i].naam + ' — ' + res.reason.message));
+                if (!gelukt.length) throw new Error(mislukt.join('\n'));
+                const nieuw = gelukt.flatMap(g => verwerk(g.items, g.feed));
                 // Samenvoegen met wat we al hadden, zodat de historie niet verdwijnt als de feed kort is
                 const bekend = new Map(meldingen.map(m => [m.id, m]));
                 nieuw.forEach(m => {
@@ -611,13 +671,13 @@
                     const oud = bekend.get(m.id);
                     bekend.set(m.id, m.geenDatum && oud ? { ...m, tijd: oud.tijd } : m);
                 });
-                meldingen = [...bekend.values()]
-                    .filter(m => Date.now() - m.tijd < 30 * 864e5)
-                    .sort((a, b) => b.tijd - a.tijd);
+                meldingen = ontdubbel([...bekend.values()]
+                    .filter(m => Date.now() - m.tijd < 30 * 864e5));
                 laatsteSucces = Date.now();
                 bewaarCache();
                 renderAlles();
-                renderStatus(false, route);
+                renderStatus(false, gelukt.map(g => g.feed.naam + ' (' + g.route + ')').join(' + '),
+                    mislukt.length ? 'Niet bereikbaar: ' + mislukt.join(' | ') : '');
             } catch (e) {
                 console.error(e);
                 if (!meldingen.length) {
@@ -625,16 +685,16 @@
                     hero.className = 'hero';
                     hero.replaceChildren(el('div', 'empty', '⚠️ Kan meldingen niet laden'));
                     hero.firstChild.appendChild(el('small', null,
-                        e.message.replace(/ · /g, '\n') + '\n\nNieuwe poging over ' + OPNIEUW_MS / 1000 + ' s'));
+                        e.message + '\n\nNieuwe poging over ' + OPNIEUW_MS / 1000 + ' s'));
                 }
-                renderStatus(true, null, e.message.replace(/^Feed niet bereikbaar\. /, ''));
-                gelukt = false;
+                renderStatus(true, null, e.message.replace(/\n/g, ' | '));
+                ok = false;
             } finally {
                 bezig = false;
             }
             // Volgende poging: normaal elke minuut, na een fout sneller
             clearTimeout(volgendeTimer);
-            volgendeTimer = setTimeout(ververs, gelukt ? VERVERS_MS : OPNIEUW_MS);
+            volgendeTimer = setTimeout(ververs, ok ? VERVERS_MS : OPNIEUW_MS);
         }
 
         // Na draaien/verkleinen van het scherm opnieuw bepalen hoeveel meldingen passen

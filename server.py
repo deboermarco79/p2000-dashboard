@@ -19,22 +19,28 @@ import threading
 import time
 import urllib.request
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
+from urllib.parse import parse_qs
 
-FEED_URL = "https://alarmeringen.nl/feeds/user/e3826aac-12d9-4685-be9e-e30a469de97c.rss"
+# Zelfde volgorde als FEEDS in index.html (/feed?bron=0, /feed?bron=1)
+FEEDS = [
+    "https://alarmeringen.nl/feeds/user/e3826aac-12d9-4685-be9e-e30a469de97c.rss",
+    "https://www.alarmeringdroid.nl/rss/7738690e",
+]
 PORT = int(os.environ.get("PORT", "8000"))
 CACHE_SECONDEN = 20
 MAP = os.path.dirname(os.path.abspath(__file__))
 
-_cache = {"tijd": 0.0, "data": None, "type": "application/rss+xml"}
+_caches = [{"tijd": 0.0, "data": None, "type": "application/rss+xml"} for _ in FEEDS]
 _slot = threading.Lock()
 
 
-def haal_feed():
+def haal_feed(bron):
     """Feed ophalen, met een korte cache zodat meerdere schermen de bron niet overbelasten."""
+    _cache = _caches[bron]
     with _slot:
         if _cache["data"] is not None and time.time() - _cache["tijd"] < CACHE_SECONDEN:
             return _cache["data"], _cache["type"]
-        verzoek = urllib.request.Request(FEED_URL, headers={
+        verzoek = urllib.request.Request(FEEDS[bron], headers={
             "User-Agent": "Mozilla/5.0 (P2000 dashboard)",
             "Accept": "application/rss+xml, application/xml, text/xml, */*",
         })
@@ -47,7 +53,7 @@ def haal_feed():
             if _cache["data"] is None:
                 raise
             # Bron tijdelijk onbereikbaar: laatste goede versie teruggeven
-            print(f"Feed ophalen mislukt, oude versie gebruikt: {fout}")
+            print(f"{FEEDS[bron]} ophalen mislukt, oude versie gebruikt: {fout}")
         return _cache["data"], _cache["type"]
 
 
@@ -56,9 +62,17 @@ class Handler(SimpleHTTPRequestHandler):
         super().__init__(*args, directory=MAP, **kwargs)
 
     def do_GET(self):
-        if self.path.split("?")[0] == "/feed":
+        pad, _, query = self.path.partition("?")
+        if pad == "/feed":
             try:
-                data, soort = haal_feed()
+                bron = int(parse_qs(query).get("bron", ["0"])[0])
+                if not 0 <= bron < len(FEEDS):
+                    raise ValueError
+            except ValueError:
+                self.send_error(404, "Onbekende feed")
+                return
+            try:
+                data, soort = haal_feed(bron)
             except Exception as fout:
                 self.send_error(502, f"Feed niet bereikbaar: {fout}")
                 return
@@ -86,5 +100,7 @@ def lokaal_ip():
 
 if __name__ == "__main__":
     print(f"Persalarm-dashboard draait. Open op de tv: http://{lokaal_ip()}:{PORT}")
-    print(f"Feed: {FEED_URL}  (stoppen met Ctrl+C)")
+    for url in FEEDS:
+        print(f"Feed: {url}")
+    print("Stoppen met Ctrl+C")
     ThreadingHTTPServer(("0.0.0.0", PORT), Handler).serve_forever()
