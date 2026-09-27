@@ -210,7 +210,7 @@
         const OPNIEUW_MS = 20 * 1000;          // na een mislukte poging sneller opnieuw proberen
         const HERLAAD_MS = 60 * 1000;          // hele pagina opnieuw laden (Chromecast/tv: blijft zo actueel)
         const NIEUW_MS = 15 * 60 * 1000;       // melding telt als "nieuw" (knipperend label)
-        const CACHE_KEY = 'p2000-persalarm-v6';
+        const CACHE_KEY = 'p2000-persalarm-v7';
         // Diagnose: open de pagina met ?debug om per melding te zien of en waarom hij (niet) getoond wordt
         const DEBUG = /[?&]debug\b/.test(location.search);
         const TZ = 'Europe/Amsterdam';          // tijden altijd in Nederlandse tijd, ook als de Chromecast op UTC staat
@@ -421,16 +421,12 @@
         }
 
         /* Ambulancemeldingen eruit, bv. "A2 (dia: ja) 12167 Rit 145306 IJweg Nieuw-Vennep".
-         * Alleen op duidelijke kenmerken in de meldingstekst zelf (niet in de omschrijving, want daar
-         * staan bij een gezamenlijke alarmering ook ambulance-eenheden):
-         * - begint met een ambulance-urgentie (A0, A1, A2, B1, B2) of met "Ambu"/"Ambulance"
-         * - bevat "dia: ja/nee" of een ritnummer ("Rit 145306")
-         * Meldingen die met P 1-3 / Prio 1-3 beginnen (politie, brandweer) blijven altijd staan.
+         * Filter is bewust smal: alleen een ritnummer ("Rit 145306") in de meldingstekst zelf
+         * (niet in de omschrijving, want daar staan bij een gezamenlijke alarmering ook
+         * ambulance-eenheden). Eerdere, bredere varianten filterden ook politiemeldingen weg.
          */
-        const AMBULANCE = /^\s*(A ?[012]|B ?[12]|ambu(lance)?)\b|\bdia\s*:\s*(ja|nee)\b|\brit\s*\d{4,}\b/i;
+        const AMBULANCE = /\brit\s*\d{4,}\b/i;
         function isAmbulance(m) {
-            if (m.capcodes && m.capcodes.length) return false;
-            if (/^\s*(P ?[123]|prio ?[123])\b/i.test(m.titel)) return false;
             return AMBULANCE.test(m.titel);
         }
 
