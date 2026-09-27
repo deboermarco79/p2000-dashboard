@@ -227,19 +227,26 @@
          */
         const enc = encodeURIComponent;
         const routes = [
-            { naam: 'eigen server', url: (u, i) => 'feed?bron=' + i, alleenViaServer: true },
+            { naam: 'eigen server', url: (u, i) => 'feed?bron=' + i, alleenViaServer: true, timeout: 15000 },
             // Eigen Vercel-functie (api/feed.js): haalt de feed server-naar-server op, dus zonder
             // CORS-beperking en zonder afhankelijkheid van een wisselvallige gratis proxy van derden.
             // Bestaat die niet (pagina niet op Vercel, of lokaal geopend), dan faalt dit gewoon en
             // valt de pagina door naar de volgende route. Geen cache-buster: die functie cacht de
             // feed zelf 20 s op Vercel's rand, wat de bron minder belast (delen tussen kijkers/tabs).
-            { naam: 'eigen proxy', url: u => '/api/feed?url=' + enc(u), geenBuster: true, alleenHttp: true },
+            // Voor traag antwoordende bronnen (time-out): eigen server en eigen proxy krijgen meer
+            // tijd dan de externe gratis proxies, want die mogen bij twijfel juist snel doorschuiven.
+            { naam: 'eigen proxy', url: u => '/api/feed?url=' + enc(u), geenBuster: true, alleenHttp: true, timeout: 15000 },
             { naam: 'rechtstreeks', url: u => u },
             { naam: 'allorigins', url: u => 'https://api.allorigins.win/raw?url=' + enc(u) },
             { naam: 'allorigins-json', url: u => 'https://api.allorigins.win/get?url=' + enc(u), lees: d => d.contents },
             { naam: 'codetabs', url: u => 'https://api.codetabs.com/v1/proxy?quest=' + enc(u) },
             { naam: 'cors.lol', url: u => 'https://api.cors.lol/?url=' + enc(u) },
             { naam: 'whateverorigin', url: u => 'https://whateverorigin.org/get?url=' + enc(u), lees: d => d.contents },
+            // Jina AI Reader: leest een willekeurige URL en geeft de inhoud terug, zonder CORS-
+            // beperking en zonder API-sleutel. Andere aanpak dan de proxies hierboven (geen eigen
+            // CORS-header nodig van de bron), dus een goede extra kans als een feed structureel
+            // blijft haperen via alle andere routes.
+            { naam: 'jina-reader', url: u => 'https://r.jina.ai/' + u, timeout: 15000 },
             // Noodroute: gratis rss2json geeft max. 10 meldingen en ververst ongeveer eens per uur
             { naam: 'rss2json', url: u => 'https://api.rss2json.com/v1/api.json?rss_url=' + enc(u), rss2json: true, nood: true },
         ].filter(r => (!r.alleenViaServer && !r.alleenHttp) || /^https?:$/.test(location.protocol));
@@ -269,7 +276,7 @@
 
         async function probeer(route, feed, i) {
             const ctrl = new AbortController();
-            const timer = setTimeout(() => ctrl.abort(), 8000);
+            const timer = setTimeout(() => ctrl.abort(), route.timeout || 8000);
             try {
                 let url = route.url(feed.url, i);
                 // Cache-buster alleen op proxy-adressen, niet op de feed zelf en niet op de eigen
