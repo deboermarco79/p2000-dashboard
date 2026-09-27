@@ -6,13 +6,13 @@
     <title>Persalarm</title>
     <style>
         :root {
-            --bg: #07090d;
-            --panel: #11151c;
-            --panel-2: #171c25;
-            --line: #252c38;
-            --text: #f2f4f8;
-            --muted: #8b95a7;
-            --accent: #4a90e2;
+            --bg: #0a0d12;
+            --panel: #121720;
+            --panel-2: #181e29;
+            --line: #232a36;
+            --text: #eef1f6;
+            --muted: #8a94a6;
+            --dim: #5d6778;
             --prio1: #e5484d;
             --prio2: #f5a524;
             --prio3: #30a46c;
@@ -29,154 +29,139 @@
             font-size: clamp(14px, 1.15vw, 48px);
             overflow: hidden;
             cursor: none;
+            display: flex; flex-direction: column;
         }
 
         /* ---------- Header ---------- */
         header {
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            gap: 2em;
-            height: 11vh;
-            padding: 0 2.2vw;
-            background: var(--panel);
-            border-bottom: 0.2em solid var(--line);
+            flex: none;
+            display: flex; align-items: center; justify-content: space-between; gap: 2em;
+            padding: 1.1em 2.2vw;
+            border-bottom: 1px solid var(--line);
         }
-        .status {
-            display: flex; align-items: center; gap: 0.6em;
-            color: var(--muted); font-size: 1em; min-width: 0;
-        }
-        .status #statusTekst { white-space: nowrap; }
-        .status #statusDetail {
-            display: block; font-size: 0.75em; margin-top: 0.25em; opacity: 0.8;
+        .status { display: flex; align-items: center; gap: 0.7em; color: var(--muted); min-width: 0; }
+        #statusTekst { white-space: nowrap; }
+        #statusDetail {
+            display: block; font-size: 0.75em; margin-top: 0.25em; color: var(--dim);
             white-space: normal; max-width: 60vw;
         }
-        .dot { width: 0.8em; height: 0.8em; border-radius: 50%; background: var(--muted); }
+        .dot { flex: none; width: 0.7em; height: 0.7em; border-radius: 50%; background: var(--muted); }
         .dot.ok { background: var(--prio3); box-shadow: 0 0 0.6em var(--prio3); }
         .dot.warn { background: var(--prio2); }
         .dot.err { background: var(--prio1); }
-
-        .clock { text-align: right; }
-        .clock .time { font-size: 2.6em; font-weight: 700; font-variant-numeric: tabular-nums; line-height: 1; }
-        .clock .date { color: var(--muted); font-size: 1.05em; margin-top: 0.25em; }
+        .clock { display: flex; align-items: baseline; gap: 1em; white-space: nowrap; }
+        .clock .time { font-size: 2.3em; font-weight: 700; font-variant-numeric: tabular-nums; }
+        .clock .date { color: var(--muted); font-size: 1.1em; }
 
         /* ---------- Layout ---------- */
         main {
-            display: grid;
-            grid-template-columns: 1.15fr 1fr;
-            gap: 1.6vw;
-            height: 89vh;
-            padding: 1.6vw 2.2vw;
+            flex: 1; min-height: 0;
+            display: flex; flex-direction: column; gap: 1.8em;
+            padding: 1.6em 2.2vw 1.4em;
         }
-        .col { display: flex; flex-direction: column; gap: 1.6vw; min-height: 0; }
-        .label {
+        .kop {
             color: var(--muted);
-            text-transform: uppercase;
-            letter-spacing: 0.12em;
-            font-size: 0.9em;
-            font-weight: 600;
-            margin-bottom: 0.7em;
+            text-transform: uppercase; letter-spacing: 0.14em;
+            font-size: 0.85em; font-weight: 600;
+            margin: 0 0 0.8em;
         }
 
-        /* ---------- Laatste melding (groot) ---------- */
+        /* ---------- Laatste melding ---------- */
         .hero {
-            position: relative;
-            flex: 1;
-            min-height: 0;
-            display: flex; flex-direction: column;
+            display: grid;
+            grid-template-columns: 10em 1fr;
+            gap: 0 2.2em;
+            align-items: center;
             background: var(--panel);
-            border: 0.12em solid var(--line);
-            border-left: 0.7em solid var(--cap, var(--politie));
-            border-radius: 0.8em;
-            padding: 1.6em 1.8em;
-            overflow: hidden;
+            border-left: 0.45em solid var(--cap, var(--politie));
+            border-radius: 0.7em;
+            padding: 1.5em 2em;
         }
-        .hero.fresh { animation: pulse 1.6s ease-in-out infinite; }
+        .hero.fresh { animation: pulse 1.8s ease-in-out infinite; }
         @keyframes pulse {
-            0%, 100% { box-shadow: 0 0 0 0 rgba(62, 143, 240, 0); }
-            50% { box-shadow: 0 0 2.5em 0.2em rgba(62, 143, 240, 0.55); }
+            0%, 100% { box-shadow: 0 0 0 0 transparent; }
+            50% { box-shadow: 0 0 2.2em 0.1em color-mix(in srgb, var(--cap, var(--politie)) 45%, transparent); }
         }
-        .hero .top { display: flex; align-items: center; gap: 0.6em 0.8em; flex-wrap: wrap; }
-        .hero .ago { margin-left: auto; color: var(--muted); font-size: 1.3em; font-variant-numeric: tabular-nums; }
+        .hero .when { font-variant-numeric: tabular-nums; border-right: 1px solid var(--line); padding-right: 1.6em; }
+        .hero .when .t { font-size: 3.4em; font-weight: 700; line-height: 1; }
+        .hero .when .ago { color: var(--text); font-size: 1.15em; margin-top: 0.5em; }
+        .hero .when .dag { color: var(--muted); font-size: 1em; margin-top: 0.15em; }
+        .hero .tags { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5em 0.7em; margin-bottom: 0.6em; }
         .hero .msg {
-            font-size: 2.6em;
-            font-weight: 650;
-            line-height: 1.25;
-            margin: 0.6em 0 0.4em;
+            font-size: 2.3em; font-weight: 650; line-height: 1.2;
             overflow-wrap: anywhere;
-            display: -webkit-box;
-            -webkit-line-clamp: 5;
-            -webkit-box-orient: vertical;
-            overflow: hidden;
+            display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden;
         }
-        .hero .meta { margin-top: auto; display: flex; gap: 2.5em; color: var(--muted); font-size: 1.2em; flex-wrap: wrap; }
-        .hero .meta b { display: block; color: var(--text); font-size: 1.35em; font-weight: 600; margin-top: 0.15em; }
 
+        /* ---------- Labels ---------- */
         .badge {
             display: inline-flex; align-items: center;
-            padding: 0.3em 0.75em;
-            border-radius: 0.4em;
-            font-weight: 700;
-            font-size: 1.05em;
-            letter-spacing: 0.03em;
-            background: var(--panel-2);
-            color: var(--text);
-            white-space: nowrap;
+            padding: 0.25em 0.65em; border-radius: 0.35em;
+            font-weight: 700; font-size: 0.95em; letter-spacing: 0.03em;
+            background: var(--panel-2); color: var(--text); white-space: nowrap;
         }
-        .hero .badge { font-size: 1.35em; }
+        .hero .badge { font-size: 1.1em; }
         .badge.p1 { background: var(--prio1); }
         .badge.p2 { background: var(--prio2); color: #1a1200; }
         .badge.p3 { background: var(--prio3); }
-        .badge.cap { background: transparent; color: var(--cap); box-shadow: inset 0 0 0 0.12em var(--cap); }
-        .badge.nieuw { background: #fff; color: #000; animation: blink 1s steps(2, start) infinite; }
-        @keyframes blink { to { visibility: hidden; } }
-
-
-        /* ---------- Lijst ---------- */
-        .list-wrap { flex: 1; min-height: 0; display: flex; flex-direction: column; }
-        #lijst {
-            flex: 1; min-height: 0;
-            overflow: hidden;
-            display: flex; flex-direction: column; gap: 0.7em;
+        .badge.nieuw { background: #fff; color: #000; }
+        .cap { color: var(--cap); font-weight: 600; white-space: nowrap; }
+        .hero .cap { font-size: 1.15em; }
+        .cap::before {
+            content: ''; display: inline-block; width: 0.6em; height: 0.6em; border-radius: 50%;
+            background: var(--cap); margin-right: 0.45em; vertical-align: 0.05em;
         }
-        .item {
+
+        /* ---------- Eerdere meldingen ---------- */
+        .eerder { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+        #lijst { flex: 1; min-height: 0; overflow: hidden; }
+        .dagkop {
+            display: flex; align-items: center; gap: 0.8em;
+            color: var(--dim); font-size: 0.8em; font-weight: 600;
+            text-transform: uppercase; letter-spacing: 0.12em;
+            padding: 0.9em 0 0.45em;
+        }
+        .dagkop:first-child { padding-top: 0; }
+        .dagkop::after { content: ''; flex: 1; height: 1px; background: var(--line); }
+        .rij {
             display: grid;
-            grid-template-columns: 5.2em 1fr;
-            gap: 0 1.1em;
-            background: var(--panel);
-            border: 0.12em solid var(--line);
-            border-left: 0.5em solid var(--cap, var(--politie));
-            border-radius: 0.6em;
-            padding: 0.85em 1.1em;
-            flex-shrink: 0;
+            grid-template-columns: 4.6em 5.4em 1fr;
+            align-items: center;
+            gap: 0 1.2em;
+            padding: 0.7em 1.2em 0.7em 1em;
+            border-left: 0.3em solid var(--cap, var(--line));
+            border-radius: 0.3em;
         }
-        .item .when { font-variant-numeric: tabular-nums; }
-        .item .when .h { font-size: 1.6em; font-weight: 700; line-height: 1.1; }
-        .item .when .d { color: var(--muted); font-size: 0.95em; }
-        .item .body { min-width: 0; }
-        .item .row { display: flex; align-items: center; flex-wrap: wrap; gap: 0.4em 0.6em; margin-bottom: 0.3em; }
-        .item .row .badge { font-size: 0.85em; padding: 0.2em 0.55em; }
-        .item .txt {
+        .rij.alt { background: var(--panel); }
+        .rij .t { font-size: 1.35em; font-weight: 700; font-variant-numeric: tabular-nums; }
+        .rij .badge { font-size: 0.8em; padding: 0.2em 0.5em; }
+        .rij .body { min-width: 0; }
+        .rij .txt {
             font-size: 1.3em; line-height: 1.3;
-            overflow: hidden; text-overflow: ellipsis;
-            display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;
+            overflow: hidden; white-space: nowrap; text-overflow: ellipsis;
         }
+        .rij .caps { display: flex; flex-wrap: wrap; gap: 0 1.4em; margin-top: 0.2em; font-size: 0.9em; }
 
         .empty {
-            color: var(--muted);
-            font-size: 1.6em;
-            text-align: center;
-            margin: auto;
-            padding: 2em;
+            color: var(--muted); font-size: 1.5em; text-align: center; padding: 1.5em;
+            grid-column: 1 / -1;
         }
         .empty small { display: block; font-size: 0.6em; margin-top: 0.8em; white-space: pre-line; line-height: 1.5; }
 
-        /* Kleinere/staande schermen: onder elkaar */
+        /* Staande/kleine schermen: gewoon scrollen */
         @media (max-aspect-ratio: 1/1) {
-            body { font-size: clamp(14px, 2.2vw, 48px); overflow: auto; }
-            header { height: auto; padding: 1em 16px; flex-wrap: wrap; }
-            main { grid-template-columns: 1fr; height: auto; padding: 16px; }
-            .hero { min-height: 40vh; }
+            body { font-size: clamp(14px, 2.4vw, 48px); overflow: auto; height: auto; }
+            header { flex-wrap: wrap; padding: 1em 16px; }
+            main { padding: 16px; }
+            .hero { grid-template-columns: 1fr; gap: 1em; padding: 1.2em; }
+            .hero .when { border-right: 0; padding-right: 0; }
+            #statusTekst, .cap { white-space: normal; }
+            .clock { flex-wrap: wrap; }
+            .rij { grid-template-columns: 3.8em 1fr; gap: 0.3em 1em; }
+            .rij .t { grid-row: 1 / span 2; align-self: start; }
+            .rij .prio, .rij .body { grid-column: 2; }
+            .rij .prio:empty { display: none; }
+            .rij .txt { white-space: normal; }
             #lijst { overflow: visible; }
         }
     </style>
@@ -188,24 +173,22 @@
             <span><span id="statusTekst">Verbinden…</span><span id="statusDetail"></span></span>
         </div>
         <div class="clock">
-            <div class="time" id="tijd">00:00:00</div>
-            <div class="date" id="datum"></div>
+            <span class="date" id="datum"></span>
+            <span class="time" id="tijd">00:00:00</span>
         </div>
     </header>
 
     <main>
-        <section class="col">
-            <div class="label">Laatste melding</div>
+        <section>
+            <div class="kop">Laatste melding</div>
             <article class="hero" id="hero">
                 <div class="empty">Meldingen ophalen…</div>
             </article>
         </section>
 
-        <section class="col">
-            <div class="list-wrap">
-                <div class="label">Eerdere meldingen</div>
-                <div id="lijst"></div>
-            </div>
+        <section class="eerder">
+            <div class="kop">Eerdere meldingen</div>
+            <div id="lijst"></div>
         </section>
     </main>
 
@@ -426,12 +409,6 @@
             return null;
         }
 
-        // Laatste stuk van de tekst met een postcode/plaatsnaam, als die er in staat
-        function locatie(tekst) {
-            const pc = tekst.match(/\b\d{4}\s?[A-Z]{2}\b.*$/);
-            return pc ? pc[0].trim() : '';
-        }
-
         function geleden(ms) {
             const s = Math.max(0, Math.round((Date.now() - ms) / 1000));
             if (s < 60) return 'zojuist';
@@ -460,18 +437,17 @@
             return e;
         }
 
-        function badges(m, parent) {
+        // Capcode-namen als gekleurde tekst
+        function capLabels(m, parent) {
             for (const code of m.capcodes || []) {
                 const c = capInfo(code);
                 if (!c) continue;
-                const b = el('span', 'badge cap', c.naam);
-                b.style.setProperty('--cap', c.kleur);
-                parent.appendChild(b);
+                const e = el('span', 'cap', c.naam);
+                e.style.setProperty('--cap', c.kleur);
+                parent.appendChild(e);
             }
-            const p = prio(m.titel);
-            if (p) parent.appendChild(el('span', 'badge ' + p.k, p.l));
-            if (Date.now() - m.tijd < NIEUW_MS) parent.appendChild(el('span', 'badge nieuw', 'NIEUW'));
         }
+        const isNieuw = m => Date.now() - m.tijd < NIEUW_MS;
 
         // Randkleur van de (eerste) capcode van de melding
         function kleur(e, m) {
@@ -483,45 +459,44 @@
             const hero = $('hero');
             hero.replaceChildren();
             hero.className = 'hero';
+            hero.style.removeProperty('--cap');
 
             if (!meldingen.length) {
-                const leeg = el('div', 'empty', 'Geen recente meldingen');
-                hero.appendChild(leeg);
+                hero.appendChild(el('div', 'empty', 'Geen recente meldingen'));
                 return;
             }
 
             const m = meldingen[0];
             kleur(hero, m);
-            if (Date.now() - m.tijd < NIEUW_MS) hero.classList.add('fresh');
+            if (isNieuw(m)) hero.classList.add('fresh');
 
-            const top = el('div', 'top');
-            badges(m, top);
-            hero.appendChild(top);
+            const when = el('div', 'when');
+            when.appendChild(el('div', 't', fmtTijd(m.tijd)));
+            when.appendChild(el('div', 'ago', geleden(m.tijd)));
+            when.appendChild(el('div', 'dag', fmtDag(m.tijd)));
+            hero.appendChild(when);
 
-            hero.appendChild(el('div', 'msg', m.tekst || m.titel));
-
-            const meta = el('div', 'meta');
-            const blok = (label, waarde) => {
-                const d = el('div', null, label);
-                d.appendChild(el('b', null, waarde));
-                meta.appendChild(d);
-            };
-            blok('Tijd', fmtTijd(m.tijd));
-            blok('Geleden', geleden(m.tijd));
-            blok('Datum', fmtDag(m.tijd));
-            const loc = locatie(m.tekst || m.titel);
-            if (loc) blok('Locatie', loc);
-            hero.appendChild(meta);
+            const inhoud = el('div', 'inhoud');
+            const tags = el('div', 'tags');
+            const p = prio(m.titel);
+            if (p) tags.appendChild(el('span', 'badge ' + p.k, p.l));
+            if (isNieuw(m)) tags.appendChild(el('span', 'badge nieuw', 'NIEUW'));
+            capLabels(m, tags);
+            if (tags.childElementCount) inhoud.appendChild(tags);
+            inhoud.appendChild(el('div', 'msg', m.tekst || m.titel));
+            hero.appendChild(inhoud);
         }
 
-        // Vaste lijst zonder scrollen: meldingen die niet meer helemaal passen vallen onderaan weg
+        // Vaste lijst zonder scrollen: rijen die niet meer helemaal passen vallen onderaan weg
         function passend(lijst) {
             if (getComputedStyle(lijst).overflow === 'visible') return;   // staand scherm: alles tonen
             const onder = lijst.getBoundingClientRect().bottom;
-            for (const item of [...lijst.children].reverse()) {
-                if (item.getBoundingClientRect().bottom <= onder + 1) break;
-                item.remove();
+            for (const e of [...lijst.children].reverse()) {
+                if (e.getBoundingClientRect().bottom <= onder + 1) break;
+                e.remove();
             }
+            // Geen dagkopje onderaan laten staan zonder meldingen eronder
+            while (lijst.lastElementChild?.classList.contains('dagkop')) lijst.lastElementChild.remove();
         }
 
         function renderLijst() {
@@ -534,23 +509,31 @@
                 return;
             }
 
+            let vorigeDag = null, n = 0;
             for (const m of rest) {
-                const item = el('div', 'item');
-                kleur(item, m);
+                const dag = fmtDag(m.tijd);
+                if (dag !== vorigeDag) {
+                    lijst.appendChild(el('div', 'dagkop', dag));
+                    vorigeDag = dag;
+                }
 
-                const when = el('div', 'when');
-                when.appendChild(el('div', 'h', fmtTijd(m.tijd)));
-                when.appendChild(el('div', 'd', fmtDag(m.tijd)));
-                item.appendChild(when);
+                const rij = el('div', 'rij' + (n++ % 2 ? ' alt' : ''));
+                kleur(rij, m);
+                rij.appendChild(el('div', 't', fmtTijd(m.tijd)));
+
+                const pk = el('div', 'prio');
+                const p = prio(m.titel);
+                if (p) pk.appendChild(el('span', 'badge ' + p.k, p.l));
+                rij.appendChild(pk);
 
                 const body = el('div', 'body');
-                const row = el('div', 'row');
-                badges(m, row);
-                if (row.childElementCount) body.appendChild(row);
                 body.appendChild(el('div', 'txt', m.tekst || m.titel));
-                item.appendChild(body);
+                const caps = el('div', 'caps');
+                capLabels(m, caps);
+                if (caps.childElementCount) body.appendChild(caps);
+                rij.appendChild(body);
 
-                lijst.appendChild(item);
+                lijst.appendChild(rij);
             }
             passend(lijst);
         }
@@ -562,7 +545,7 @@
             if (!fout) {
                 dot.className = 'dot ok';
                 $('statusTekst').textContent = 'Live · bijgewerkt ' + fmtTijd(laatsteSucces) + (route ? ' · via ' + route : '');
-                if (detail) $('statusDetail').textContent = detail;   // één van de feeds faalt
+                if (detail) $('statusTekst').textContent += ' · ' + detail;   // één van de feeds faalt
                 return;
             }
             dot.className = laatsteSucces ? 'dot warn' : 'dot err';
@@ -622,7 +605,7 @@
                 bewaarCache();
                 renderAlles();
                 renderStatus(false, gelukt.map(g => g.feed.naam + ' (' + g.route + ')').join(' + '),
-                    mislukt.length ? 'Niet bereikbaar: ' + mislukt.join(' | ') : '');
+                    mislukt.length ? FEEDS.filter(f => !gelukt.some(g => g.feed === f)).map(f => f.naam).join(', ') + ' niet bereikbaar' : '');
             } catch (e) {
                 console.error(e);
                 if (!meldingen.length) {
