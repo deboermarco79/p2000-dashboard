@@ -217,6 +217,9 @@
             { naam: '112hier.nl (voorlichter Noord-Holland-Noord)', url: 'https://112hier.nl/feed.json?capcodes=0205625', dienst: 'Voorlichter van dienst Noord-Holland-Noord', kleur: '#f472b6', formaat: '112hier' },
         ];
         const VERVERS_MS = 60 * 1000;          // nieuwe meldingen ophalen
+        // 112hier.nl staat tot 30 verzoeken/minuut toe (anders 429). Vier 112hier-feeds elke 10 s
+        // is 24 verzoeken/minuut, ruim binnen die marge, en zes keer zo snel als de rest van de minuut.
+        const SNEL_MS = 10 * 1000;
         const OPNIEUW_MS = 20 * 1000;          // na een mislukte poging sneller opnieuw proberen
         const HERLAAD_MS = 60 * 1000;          // hele pagina opnieuw laden (Chromecast/tv: blijft zo actueel)
         const NIEUW_MS = 5 * 60 * 1000;        // melding telt als "nieuw" (knipperend label)
@@ -704,66 +707,97 @@
         }
 
         /* ================= Hoofdlus ================= */
+        // Elke feed heeft zijn eigen ritme (zie SNEL_MS/VERVERS_MS hierboven) en onthoudt zijn
+        // eigen laatste resultaat, zodat een feed die nog niet weer aan de beurt is gewoon met
+        // zijn laatst opgehaalde meldingen blijft meetellen.
+        FEEDS.forEach(f => {
+            f.interval = f.formaat === '112hier' ? SNEL_MS : VERVERS_MS;
+            f.volgende = 0;          // eerste keer: meteen ophalen
+            f.laatsteFout = null;    // { kort, volledig } zolang de laatste poging mislukte
+            f.laatsteRoute = null;
+            f.laatsteItems = [];     // ruwe items van de laatst gelukte poging
+        });
+
         let bezig = false;
         let volgendeTimer;
         let laatsteRonde = null;
         async function ververs() {
             if (bezig) return;           // vorige poging loopt nog
-            bezig = true;
-            let ok = true;
-            try {
-                // Zoals Promise.allSettled, maar ook in oudere tv-browsers
-                const resultaten = await Promise.all(FEEDS.map((f, i) => haalFeed(f, i).then(
-                    value => ({ status: 'fulfilled', value }), reason => ({ status: 'rejected', reason }))));
-                const gelukt = [], mislukt = [];
-                resultaten.forEach((res, i) => res.status === 'fulfilled'
-                    ? gelukt.push({ feed: FEEDS[i], ...res.value })
-                    : mislukt.push({ feed: FEEDS[i], kort: res.reason.message, volledig: res.reason.volledig || res.reason.message }));
-                if (!gelukt.length) throw new Error(mislukt.map(m => m.feed.naam + ' — ' + m.volledig).join('\n'));
-                const alleNieuw = gelukt.flatMap(g => verwerk(g.items, g.feed));
-                const nieuw = alleNieuw.filter(m => !isAmbulance(m));
-                laatsteRonde = { gelukt, mislukt, alle: alleNieuw };
-                // Samenvoegen met wat we al hadden, zodat de historie niet verdwijnt als de feed kort is
-                const bekend = new Map(meldingen.map(m => [m.id, m]));
-                nieuw.forEach(m => {
-                    // Zonder datum in de feed: tijdstip van eerste keer zien bewaren
-                    const oud = bekend.get(m.id);
-                    bekend.set(m.id, m.geenDatum && oud ? { ...m, tijd: oud.tijd } : m);
-                });
-                meldingen = ontdubbel([...bekend.values()]
-                    .filter(m => Date.now() - m.tijd < 30 * 864e5 && !isAmbulance(m)));
-                laatsteSucces = Date.now();
-                bewaarCache();
-                renderAlles();
-                renderDebug();
-                // Alles gelukt: één korte regel, geen opsomming (dat maakt de balk onnodig groot).
-                // Bij een enkele/twee feeds mag de route erbij; bij veel feeds is dat te veel tekst.
-                const routeSamenvatting = mislukt.length ? gelukt.length + '/' + FEEDS.length + ' feeds'
-                    : gelukt.length <= 2 ? 'via ' + gelukt.map(g => g.feed.naam + ' (' + g.route + ')').join(' + ') : 'alle feeds';
-                // Bij een storing: per feed de kortst mogelijke reden (bv. 'HTTP 403'), zodat je in
-                // één regel ziet wat er misgaat. De volledige route-voor-route foutenlijst staat in
-                // de console en (per melding) in ?debug.
-                const opmerkingen = mislukt.length
-                    ? [mislukt.map(m => m.feed.naam + ' (' + m.kort + ')').join(', ') + ' niet bereikbaar'] : [];
-                renderStatus(false, routeSamenvatting, opmerkingen.join(' · '));
-            } catch (e) {
-                console.error(e);
-                if (!meldingen.length) {
-                    const hero = $('hero');
-                    hero.className = 'hero';
-                    leeg(hero);
-                    hero.appendChild(el('div', 'empty', '⚠️ Kan meldingen niet laden'));
-                    hero.firstChild.appendChild(el('small', null,
-                        e.message + '\n\nNieuwe poging over ' + OPNIEUW_MS / 1000 + ' s'));
+            const nu = Date.now();
+            const due = FEEDS.filter(f => nu >= f.volgende);
+            if (due.length) {
+                bezig = true;
+                try {
+                    // Zoals Promise.allSettled, maar ook in oudere tv-browsers
+                    const resultaten = await Promise.all(due.map(f => haalFeed(f, FEEDS.indexOf(f)).then(
+                        value => ({ status: 'fulfilled', value }), reason => ({ status: 'rejected', reason }))));
+                    resultaten.forEach((res, i) => {
+                        const feed = due[i];
+                        if (res.status === 'fulfilled') {
+                            feed.laatsteFout = null;
+                            feed.laatsteRoute = res.value.route;
+                            feed.laatsteItems = res.value.items;
+                            feed.volgende = Date.now() + feed.interval;
+                        } else {
+                            feed.laatsteFout = { kort: res.reason.message, volledig: res.reason.volledig || res.reason.message };
+                            feed.volgende = Date.now() + OPNIEUW_MS;
+                        }
+                    });
+
+                    // "Gelukt" = laatste poging van díe feed was goed (ook als dat een vorige ronde was);
+                    // een feed die nu net mislukt telt niet meer mee, ook al lukte hij eerder wel.
+                    const gelukt = FEEDS.filter(f => !f.laatsteFout);
+                    const mislukt = FEEDS.filter(f => f.laatsteFout);
+                    if (!gelukt.length) throw new Error(mislukt.map(f => f.naam + ' — ' + f.laatsteFout.volledig).join('\n'));
+                    const alleNieuw = gelukt.flatMap(f => verwerk(f.laatsteItems, f));
+                    const nieuw = alleNieuw.filter(m => !isAmbulance(m));
+                    laatsteRonde = {
+                        gelukt: gelukt.map(f => ({ feed: f, route: f.laatsteRoute })),
+                        mislukt: mislukt.map(f => ({ feed: f, kort: f.laatsteFout.kort, volledig: f.laatsteFout.volledig })),
+                        alle: alleNieuw,
+                    };
+                    // Samenvoegen met wat we al hadden, zodat de historie niet verdwijnt als de feed kort is
+                    const bekend = new Map(meldingen.map(m => [m.id, m]));
+                    nieuw.forEach(m => {
+                        // Zonder datum in de feed: tijdstip van eerste keer zien bewaren
+                        const oud = bekend.get(m.id);
+                        bekend.set(m.id, m.geenDatum && oud ? { ...m, tijd: oud.tijd } : m);
+                    });
+                    meldingen = ontdubbel([...bekend.values()]
+                        .filter(m => Date.now() - m.tijd < 30 * 864e5 && !isAmbulance(m)));
+                    laatsteSucces = Date.now();
+                    bewaarCache();
+                    renderAlles();
+                    renderDebug();
+                    // Alles gelukt: één korte regel, geen opsomming (dat maakt de balk onnodig groot).
+                    // Bij een enkele/twee feeds mag de route erbij; bij veel feeds is dat te veel tekst.
+                    const routeSamenvatting = mislukt.length ? gelukt.length + '/' + FEEDS.length + ' feeds'
+                        : gelukt.length <= 2 ? 'via ' + gelukt.map(f => f.naam + ' (' + f.laatsteRoute + ')').join(' + ') : 'alle feeds';
+                    // Bij een storing: per feed de kortst mogelijke reden (bv. 'HTTP 403'), zodat je in
+                    // één regel ziet wat er misgaat. De volledige route-voor-route foutenlijst staat in
+                    // de console en (per melding) in ?debug.
+                    const opmerkingen = mislukt.length
+                        ? [mislukt.map(f => f.naam + ' (' + f.laatsteFout.kort + ')').join(', ') + ' niet bereikbaar'] : [];
+                    renderStatus(false, routeSamenvatting, opmerkingen.join(' · '));
+                } catch (e) {
+                    console.error(e);
+                    if (!meldingen.length) {
+                        const hero = $('hero');
+                        hero.className = 'hero';
+                        leeg(hero);
+                        hero.appendChild(el('div', 'empty', '⚠️ Kan meldingen niet laden'));
+                        hero.firstChild.appendChild(el('small', null,
+                            e.message + '\n\nNieuwe poging over ' + OPNIEUW_MS / 1000 + ' s'));
+                    }
+                    renderStatus(true, null, e.message.replace(/\n/g, ' | '));
+                } finally {
+                    bezig = false;
                 }
-                renderStatus(true, null, e.message.replace(/\n/g, ' | '));
-                ok = false;
-            } finally {
-                bezig = false;
             }
-            // Volgende poging: normaal elke minuut, na een fout sneller
+            // Volgende keer checken zodra de eerstvolgende feed weer aan de beurt is
             clearTimeout(volgendeTimer);
-            volgendeTimer = setTimeout(ververs, ok ? VERVERS_MS : OPNIEUW_MS);
+            const wachttijd = Math.max(1000, Math.min(...FEEDS.map(f => f.volgende)) - Date.now());
+            volgendeTimer = setTimeout(ververs, wachttijd);
         }
 
         // Na draaien/verkleinen van het scherm opnieuw bepalen hoeveel meldingen passen
