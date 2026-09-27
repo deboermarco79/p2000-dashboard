@@ -3,23 +3,20 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>P2000 Monitor</title>
+    <title>Persalarm</title>
     <style>
         :root {
-            --bg: #07090d;
-            --panel: #11151c;
-            --panel-2: #171c25;
-            --line: #252c38;
-            --text: #f2f4f8;
-            --muted: #8b95a7;
-            --accent: #4a90e2;
+            --bg: #0a0d12;
+            --panel: #121720;
+            --panel-2: #181e29;
+            --line: #232a36;
+            --text: #eef1f6;
+            --muted: #8a94a6;
+            --dim: #5d6778;
             --prio1: #e5484d;
             --prio2: #f5a524;
             --prio3: #30a46c;
-            --brandweer: #e5484d;
-            --ambulance: #f5d90a;
             --politie: #3e8ff0;
-            --overig: #6b7280;
         }
         * { box-sizing: border-box; }
         html, body { height: 100%; }
@@ -29,249 +26,198 @@
             color: var(--text);
             font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
             /* Alles schaalt mee met de schermbreedte: werkt op 720p, 1080p en 4K */
+            font-size: 1.15vw;                      /* terugval voor oudere tv-browsers */
             font-size: clamp(14px, 1.15vw, 48px);
             overflow: hidden;
             cursor: none;
+            display: flex; flex-direction: column;
         }
 
         /* ---------- Header ---------- */
         header {
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            gap: 2em;
-            height: 11vh;
-            padding: 0 2.2vw;
-            background: var(--panel);
-            border-bottom: 0.2em solid var(--line);
+            flex: none;
+            display: flex; align-items: center; justify-content: space-between; gap: 2em;
+            padding: 1.1em 2.2vw;
+            border-bottom: 1px solid var(--line);
         }
-        .brand { display: flex; align-items: center; gap: 1em; min-width: 0; }
-        .brand .logo {
-            display: grid; place-items: center;
-            width: 2.8em; height: 2.8em;
-            border-radius: 0.5em;
-            background: var(--prio1);
-            font-weight: 800; font-size: 1.1em;
-            letter-spacing: 0.02em;
+        .status { display: flex; align-items: center; gap: 0.7em; color: var(--muted); min-width: 0; }
+        #statusTekst { white-space: nowrap; }
+        #statusDetail {
+            display: block; font-size: 0.75em; margin-top: 0.25em; color: var(--dim);
+            white-space: normal; max-width: 60vw;
         }
-        .brand h1 { margin: 0; font-size: 2.1em; font-weight: 700; white-space: nowrap; }
-        .brand .sub { color: var(--muted); font-size: 1.05em; margin-top: 0.1em; }
-        .brand .sub b { color: var(--text); font-variant-numeric: tabular-nums; }
-
-        .status {
-            display: flex; align-items: center; gap: 0.6em;
-            color: var(--muted); font-size: 1em; white-space: nowrap;
-        }
-        .dot { width: 0.8em; height: 0.8em; border-radius: 50%; background: var(--muted); }
+        .dot { flex: none; width: 0.7em; height: 0.7em; border-radius: 50%; background: var(--muted); }
         .dot.ok { background: var(--prio3); box-shadow: 0 0 0.6em var(--prio3); }
         .dot.warn { background: var(--prio2); }
         .dot.err { background: var(--prio1); }
-
-        .clock { text-align: right; }
-        .clock .time { font-size: 2.6em; font-weight: 700; font-variant-numeric: tabular-nums; line-height: 1; }
-        .clock .date { color: var(--muted); font-size: 1.05em; margin-top: 0.25em; }
+        .clock { display: flex; align-items: baseline; gap: 1em; white-space: nowrap; }
+        .clock .time { font-size: 2.3em; font-weight: 700; font-variant-numeric: tabular-nums; }
+        .clock .date { color: var(--muted); font-size: 1.1em; }
 
         /* ---------- Layout ---------- */
         main {
-            display: grid;
-            grid-template-columns: 1.15fr 1fr;
-            gap: 1.6vw;
-            height: 89vh;
-            padding: 1.6vw 2.2vw;
+            flex: 1; min-height: 0;
+            display: flex; flex-direction: column; gap: 1.8em;
+            padding: 1.6em 2.2vw 1.4em;
         }
-        .col { display: flex; flex-direction: column; gap: 1.6vw; min-height: 0; }
-        .label {
+        .kop {
             color: var(--muted);
-            text-transform: uppercase;
-            letter-spacing: 0.12em;
-            font-size: 0.9em;
-            font-weight: 600;
-            margin-bottom: 0.7em;
+            text-transform: uppercase; letter-spacing: 0.14em;
+            font-size: 0.85em; font-weight: 600;
+            margin: 0 0 0.8em;
         }
 
-        /* ---------- Laatste melding (groot) ---------- */
+        /* ---------- Laatste melding ---------- */
         .hero {
-            position: relative;
-            flex: 1;
-            min-height: 0;
-            display: flex; flex-direction: column;
+            display: grid;
+            grid-template-columns: 10em 1fr;
+            gap: 0 2.2em;
+            align-items: center;
             background: var(--panel);
-            border: 0.12em solid var(--line);
-            border-left: 0.7em solid var(--overig);
-            border-radius: 0.8em;
-            padding: 1.6em 1.8em;
-            overflow: hidden;
+            border-left: 0.45em solid var(--cap, var(--politie));
+            border-radius: 0.7em;
+            padding: 1.5em 2em;
         }
-        .hero.fresh { animation: pulse 1.6s ease-in-out infinite; }
+        .hero.fresh { animation: pulse 1.8s ease-in-out infinite; }
         @keyframes pulse {
-            0%, 100% { box-shadow: 0 0 0 0 rgba(229, 72, 77, 0); }
-            50% { box-shadow: 0 0 2.5em 0.2em rgba(229, 72, 77, 0.45); }
+            0%, 100% { box-shadow: 0 0 0 0 transparent; }
+            50% { box-shadow: 0 0 2.2em 0.1em color-mix(in srgb, var(--cap, var(--politie)) 45%, transparent); }
         }
-        .hero .top { display: flex; align-items: center; gap: 0.8em; flex-wrap: wrap; }
-        .hero .ago { margin-left: auto; color: var(--muted); font-size: 1.3em; font-variant-numeric: tabular-nums; }
+        .hero .when { font-variant-numeric: tabular-nums; border-right: 1px solid var(--line); padding-right: 1.6em; }
+        .hero .when .t { font-size: 3.4em; font-weight: 700; line-height: 1; }
+        .hero .when .ago { color: var(--text); font-size: 1.15em; margin-top: 0.5em; }
+        .hero .when .dag { color: var(--muted); font-size: 1em; margin-top: 0.15em; }
+        .hero .tags { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5em 0.7em; margin-bottom: 0.6em; }
         .hero .msg {
-            font-size: 2.6em;
-            font-weight: 650;
-            line-height: 1.25;
-            margin: 0.6em 0 0.4em;
+            font-size: 2.3em; font-weight: 650; line-height: 1.2;
             overflow-wrap: anywhere;
-            display: -webkit-box;
-            -webkit-line-clamp: 5;
-            -webkit-box-orient: vertical;
-            overflow: hidden;
+            display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden;
         }
-        .hero .meta { margin-top: auto; display: flex; gap: 2.5em; color: var(--muted); font-size: 1.2em; flex-wrap: wrap; }
-        .hero .meta b { display: block; color: var(--text); font-size: 1.35em; font-weight: 600; margin-top: 0.15em; }
 
+        /* ---------- Labels ---------- */
         .badge {
             display: inline-flex; align-items: center;
-            padding: 0.3em 0.75em;
-            border-radius: 0.4em;
-            font-weight: 700;
-            font-size: 1.05em;
-            letter-spacing: 0.03em;
-            background: var(--panel-2);
-            color: var(--text);
-            white-space: nowrap;
+            padding: 0.25em 0.65em; border-radius: 0.35em;
+            font-weight: 700; font-size: 0.95em; letter-spacing: 0.03em;
+            background: var(--panel-2); color: var(--text); white-space: nowrap;
         }
-        .hero .badge { font-size: 1.35em; }
+        .hero .badge { font-size: 1.1em; }
         .badge.p1 { background: var(--prio1); }
         .badge.p2 { background: var(--prio2); color: #1a1200; }
         .badge.p3 { background: var(--prio3); }
-        .badge.nieuw { background: #fff; color: #000; animation: blink 1s steps(2, start) infinite; }
-        @keyframes blink { to { visibility: hidden; } }
-
-        .brandweer { border-left-color: var(--brandweer) !important; }
-        .ambulance { border-left-color: var(--ambulance) !important; }
-        .politie   { border-left-color: var(--politie) !important; }
-        .dienst.brandweer { color: var(--brandweer); }
-        .dienst.ambulance { color: var(--ambulance); }
-        .dienst.politie   { color: var(--politie); }
-
-        /* ---------- Statistieken ---------- */
-        .stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1.6vw; }
-        .stat {
-            background: var(--panel);
-            border: 0.12em solid var(--line);
-            border-radius: 0.8em;
-            padding: 1em 1.3em;
+        .badge.nieuw { background: #fff; color: #000; }
+        .cap { color: var(--cap); font-weight: 600; white-space: nowrap; }
+        .hero .cap { font-size: 1.15em; }
+        .cap::before {
+            content: ''; display: inline-block; width: 0.6em; height: 0.6em; border-radius: 50%;
+            background: var(--cap); margin-right: 0.45em; vertical-align: 0.05em;
         }
-        .stat .n { font-size: 3em; font-weight: 750; line-height: 1; font-variant-numeric: tabular-nums; }
-        .stat .t { color: var(--muted); margin-top: 0.4em; font-size: 1em; }
 
-        /* ---------- Lijst ---------- */
-        .list-wrap { flex: 1; min-height: 0; display: flex; flex-direction: column; }
-        #lijst {
-            flex: 1; min-height: 0;
-            overflow: hidden;
-            display: flex; flex-direction: column; gap: 0.7em;
-            scroll-behavior: smooth;
+        /* ---------- Eerdere meldingen ---------- */
+        .eerder { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+        #lijst { flex: 1; min-height: 0; overflow: hidden; }
+        .dagkop {
+            display: flex; align-items: center; gap: 0.8em;
+            color: var(--dim); font-size: 0.8em; font-weight: 600;
+            text-transform: uppercase; letter-spacing: 0.12em;
+            padding: 0.9em 0 0.45em;
         }
-        .item {
+        .dagkop:first-child { padding-top: 0; }
+        .dagkop::after { content: ''; flex: 1; height: 1px; background: var(--line); }
+        .rij {
             display: grid;
-            grid-template-columns: 5.2em 1fr;
-            gap: 0 1.1em;
-            background: var(--panel);
-            border: 0.12em solid var(--line);
-            border-left: 0.5em solid var(--overig);
-            border-radius: 0.6em;
-            padding: 0.85em 1.1em;
-            flex-shrink: 0;
+            grid-template-columns: 4.6em 5.4em 1fr;
+            align-items: center;
+            gap: 0 1.2em;
+            padding: 0.7em 1.2em 0.7em 1em;
+            border-left: 0.3em solid var(--cap, var(--line));
+            border-radius: 0.3em;
         }
-        .item .when { font-variant-numeric: tabular-nums; }
-        .item .when .h { font-size: 1.6em; font-weight: 700; line-height: 1.1; }
-        .item .when .d { color: var(--muted); font-size: 0.95em; }
-        .item .body { min-width: 0; }
-        .item .row { display: flex; align-items: center; gap: 0.6em; margin-bottom: 0.3em; }
-        .item .row .dienst { font-weight: 600; font-size: 0.95em; text-transform: uppercase; letter-spacing: 0.06em; }
-        .item .row .badge { font-size: 0.85em; padding: 0.2em 0.55em; }
-        .item .txt {
+        .rij.alt { background: var(--panel); }
+        .rij .t { font-size: 1.35em; font-weight: 700; font-variant-numeric: tabular-nums; }
+        .rij .badge { font-size: 0.8em; padding: 0.2em 0.5em; }
+        .rij .body { min-width: 0; }
+        .rij .txt {
             font-size: 1.3em; line-height: 1.3;
-            overflow: hidden; text-overflow: ellipsis;
-            display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;
+            overflow: hidden; white-space: nowrap; text-overflow: ellipsis;
         }
+        .rij .caps { display: flex; flex-wrap: wrap; gap: 0 1.4em; margin-top: 0.2em; font-size: 0.9em; }
 
         .empty {
-            color: var(--muted);
-            font-size: 1.6em;
-            text-align: center;
-            margin: auto;
-            padding: 2em;
+            color: var(--muted); font-size: 1.5em; text-align: center; padding: 1.5em;
+            grid-column: 1 / -1;
         }
-        .empty small { display: block; font-size: 0.6em; margin-top: 0.8em; }
-
-        /* Kleinere/staande schermen: onder elkaar */
-        @media (max-aspect-ratio: 1/1) {
-            body { font-size: clamp(14px, 2.2vw, 48px); overflow: auto; }
-            header { height: auto; padding: 1em 16px; flex-wrap: wrap; }
-            main { grid-template-columns: 1fr; height: auto; padding: 16px; }
-            .hero { min-height: 40vh; }
-            #lijst { overflow: visible; }
-        }
+        .empty small { display: block; font-size: 0.6em; margin-top: 0.8em; white-space: pre-line; line-height: 1.5; }
     </style>
 </head>
 <body>
     <header>
-        <div class="brand">
-            <div class="logo">112</div>
-            <div>
-                <h1>P2000 Alarmeringen</h1>
-                <div class="sub">Capcode <b id="capcode">-</b></div>
-            </div>
-        </div>
         <div class="status">
             <span class="dot" id="dot"></span>
-            <span id="statusTekst">Verbinden…</span>
+            <span><span id="statusTekst">Verbinden…</span><span id="statusDetail"></span></span>
         </div>
         <div class="clock">
-            <div class="time" id="tijd">00:00:00</div>
-            <div class="date" id="datum"></div>
+            <span class="date" id="datum"></span>
+            <span class="time" id="tijd">00:00:00</span>
         </div>
     </header>
 
     <main>
-        <section class="col">
-            <div class="label">Laatste melding</div>
+        <section>
+            <div class="kop">Laatste melding</div>
             <article class="hero" id="hero">
                 <div class="empty">Meldingen ophalen…</div>
             </article>
-            <div class="stats">
-                <div class="stat"><div class="n" id="statVandaag">–</div><div class="t">Vandaag</div></div>
-                <div class="stat"><div class="n" id="stat24">–</div><div class="t">Afgelopen 24 uur</div></div>
-                <div class="stat"><div class="n" id="stat7">–</div><div class="t">Afgelopen 7 dagen</div></div>
-            </div>
         </section>
 
-        <section class="col">
-            <div class="list-wrap">
-                <div class="label">Eerdere meldingen</div>
-                <div id="lijst"></div>
-            </div>
+        <section class="eerder">
+            <div class="kop">Eerdere meldingen</div>
+            <div id="lijst"></div>
         </section>
     </main>
 
     <script>
         /* ================= Instellingen =================
-         * Aanpasbaar via de URL, bv. index.html?capcode=0127850&feed=https://...
+         * Persalarmen voor deze capcodes, uit twee feeds tegelijk (zie FEEDS):
          */
-        const params = new URLSearchParams(location.search);
-        const CAPCODE = params.get('capcode') || '0127850';
-        const FEED_URL = params.get('feed') ||
-            'https://www.alarmeringdroid.nl/rss/a067947f';
-        const VERVERS_MS = 60 * 1000;          // nieuwe meldingen ophalen
-        const NIEUW_MS = 15 * 60 * 1000;       // melding telt als "nieuw" (knipperend label)
-        const SCROLL_MS = 10 * 1000;           // lijst doorbladeren
-        const CACHE_KEY = 'p2000-cache-' + CAPCODE + '-' + FEED_URL;
-
-        // Browsers mogen de feed niet rechtstreeks lezen (CORS), daarom via een proxy.
-        const proxies = [
-            u => ({ url: 'https://api.allorigins.win/get?url=' + encodeURIComponent(u), type: 'json' }),
-            u => ({ url: 'https://api.codetabs.com/v1/proxy?quest=' + encodeURIComponent(u), type: 'raw' }),
-            u => ({ url: 'https://corsproxy.io/?url=' + encodeURIComponent(u), type: 'raw' }),
+        const CAPCODES = [
+            { code: '0127850', naam: 'Politie Noord-Holland · Persalarm', kleur: '#3e8ff0' },
+            { code: '0104972', naam: 'Woordvoerder VR Zaanstreek-Waterland', kleur: '#a78bfa' },
+            { code: '0127185', naam: 'Woordvoerder VR Kennemerland', kleur: '#2dd4bf' },
+            { code: '0205625', naam: 'Woordvoerder VR Noord-Holland-Noord', kleur: '#f472b6' },
         ];
+        // Beide feeds worden opgehaald en samengevoegd; valt er één uit, dan komt de andere nog door.
+        // Alles uit beide feeds wordt getoond; dubbele meldingen worden samengevoegd.
+        const FEEDS = [
+            { naam: 'alarmeringen.nl', url: 'https://alarmeringen.nl/feeds/user/e3826aac-12d9-4685-be9e-e30a469de97c.rss' },
+            { naam: 'alarmeringdroid', url: 'https://www.alarmeringdroid.nl/rss/7738690e' },
+        ];
+        const VERVERS_MS = 60 * 1000;          // nieuwe meldingen ophalen
+        const OPNIEUW_MS = 20 * 1000;          // na een mislukte poging sneller opnieuw proberen
+        const HERLAAD_MS = 60 * 1000;          // hele pagina opnieuw laden (Chromecast/tv: blijft zo actueel)
+        const NIEUW_MS = 15 * 60 * 1000;       // melding telt als "nieuw" (knipperend label)
+        const CACHE_KEY = 'p2000-persalarm-v2';
+        const TZ = 'Europe/Amsterdam';          // tijden altijd in Nederlandse tijd, ook als de Chromecast op UTC staat
+
+        /* Een browser mag een feed van een andere site alleen lezen als die site dat toestaat (CORS).
+         * Daarom proberen we een reeks routes; de route die werkt wordt onthouden en voortaan eerst gebruikt.
+         * 1. Eigen server (server.py) — alleen als deze pagina via die server geopend is. Meest betrouwbaar.
+         * 2. Rechtstreeks — werkt als de feed-site CORS toestaat.
+         * 3. Publieke proxies en RSS-naar-JSON diensten.
+         */
+        const enc = encodeURIComponent;
+        const routes = [
+            { naam: 'eigen server', url: (u, i) => 'feed?bron=' + i, alleenViaServer: true },
+            { naam: 'rechtstreeks', url: u => u },
+            { naam: 'allorigins', url: u => 'https://api.allorigins.win/raw?url=' + enc(u) },
+            { naam: 'allorigins-json', url: u => 'https://api.allorigins.win/get?url=' + enc(u), lees: d => d.contents },
+            { naam: 'codetabs', url: u => 'https://api.codetabs.com/v1/proxy?quest=' + enc(u) },
+            { naam: 'cors.lol', url: u => 'https://api.cors.lol/?url=' + enc(u) },
+            { naam: 'whateverorigin', url: u => 'https://whateverorigin.org/get?url=' + enc(u), lees: d => d.contents },
+            { naam: 'rss2json', url: u => 'https://api.rss2json.com/v1/api.json?rss_url=' + enc(u), rss2json: true },
+        ].filter(r => !r.alleenViaServer || /^https?:$/.test(location.protocol));
 
         const $ = id => document.getElementById(id);
-        $('capcode').textContent = CAPCODE;
 
         let meldingen = [];
         let laatsteSucces = null;
@@ -279,31 +225,68 @@
         /* ================= Klok ================= */
         function tik() {
             const nu = new Date();
-            $('tijd').textContent = nu.toLocaleTimeString('nl-NL');
-            const d = nu.toLocaleDateString('nl-NL', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+            $('tijd').textContent = nu.toLocaleTimeString('nl-NL', { timeZone: TZ });
+            const d = nu.toLocaleDateString('nl-NL', { timeZone: TZ, weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
             $('datum').textContent = d.charAt(0).toUpperCase() + d.slice(1);
         }
         tik();
         setInterval(tik, 1000);
 
         /* ================= Ophalen ================= */
-        async function haalFeed() {
-            const bust = (FEED_URL.includes('?') ? '&' : '?') + '_t=' + Date.now();
-            for (const maak of proxies) {
-                const p = maak(FEED_URL + bust);
+        // Per feed onthouden welke route werkte
+        FEEDS.forEach(f => {
+            f.routeKey = 'p2000-route-' + f.url;
+            try { f.voorkeur = localStorage.getItem(f.routeKey); } catch (e) { f.voorkeur = null; }
+        });
+
+        async function probeer(route, feed, i) {
+            const ctrl = new AbortController();
+            const timer = setTimeout(() => ctrl.abort(), 8000);
+            try {
+                let url = route.url(feed.url, i);
+                // Cache-buster alleen op proxy-adressen, niet op de feed zelf
+                if (url !== feed.url) url += (url.includes('?') ? '&' : '?') + '_t=' + Date.now();
+                const res = await fetch(url, { cache: 'no-store', signal: ctrl.signal });
+                if (!res.ok) throw new Error('HTTP ' + res.status);
+
+                if (route.rss2json) {
+                    const d = await res.json();
+                    if (d.status !== 'ok' || !Array.isArray(d.items)) throw new Error(d.message || 'geen feed');
+                    return d.items.map(i => ({
+                        titel: i.title, beschrijving: i.description || i.content,
+                        categorie: (i.categories || []).join(' '),
+                        // rss2json geeft "2026-09-27 04:41:00" in UTC
+                        ruweDatum: /^\d{4}-\d\d-\d\d \d/.test(i.pubDate || '') ? i.pubDate.replace(' ', 'T') + 'Z' : i.pubDate,
+                        id: i.guid || i.link,
+                    }));
+                }
+                const tekst = route.lees ? route.lees(await res.json()) : await res.text();
+                if (!tekst || !/<(rss|feed|rdf:RDF|channel)[\s>]/i.test(tekst)) throw new Error('antwoord is geen feed');
+                return leesXml(tekst);
+            } catch (e) {
+                throw new Error(e.name === 'AbortError' ? 'time-out' : (e.message === 'Failed to fetch' ? 'geblokkeerd' : e.message));
+            } finally {
+                clearTimeout(timer);
+            }
+        }
+
+        async function haalFeed(feed, i) {
+            const volgorde = [...routes].sort((a, b) => (b.naam === feed.voorkeur) - (a.naam === feed.voorkeur));
+            const fouten = [];
+            for (const route of volgorde) {
                 try {
-                    const ctrl = new AbortController();
-                    const timer = setTimeout(() => ctrl.abort(), 15000);
-                    const res = await fetch(p.url, { cache: 'no-store', signal: ctrl.signal });
-                    clearTimeout(timer);
-                    if (!res.ok) continue;
-                    const tekst = p.type === 'json' ? (await res.json()).contents : await res.text();
-                    if (tekst && /<(item|entry)[\s>]/.test(tekst)) return tekst;
+                    const items = await probeer(route, feed, i);
+                    if (route.naam !== feed.voorkeur) {
+                        feed.voorkeur = route.naam;
+                        try { localStorage.setItem(feed.routeKey, route.naam); } catch (e) { /* geen opslag */ }
+                    }
+                    return { items, route: route.naam };
                 } catch (e) {
-                    console.warn('Proxy mislukt:', p.url, e);
+                    console.warn(feed.naam, 'route mislukt:', route.naam, e.message);
+                    fouten.push(route.naam + ': ' + e.message);
                 }
             }
-            throw new Error('Feed niet bereikbaar via de proxies');
+            throw new Error(fouten.join(' · '));
         }
 
         function stripHtml(html) {
@@ -326,13 +309,14 @@
             return null;
         }
 
-        function parseFeed(xml) {
+        // XML (RSS of Atom) omzetten naar ruwe items
+        function leesXml(xml) {
             const doc = new DOMParser().parseFromString(xml, 'text/xml');
-            if (doc.querySelector('parsererror')) throw new Error('Feed kon niet worden gelezen');
+            if (doc.querySelector('parsererror')) throw new Error('feed kon niet worden gelezen');
 
             // RSS gebruikt <item>, Atom gebruikt <entry>
             const items = [...doc.getElementsByTagName('item'), ...doc.getElementsByTagName('entry')];
-            const alle = items.map(item => {
+            return items.map(item => {
                 const get = naam => {
                     for (const n of naam.split('|')) {
                         const e = item.getElementsByTagName(n)[0];
@@ -340,55 +324,93 @@
                     }
                     return '';
                 };
-                const beschrijving = stripHtml(get('description|summary|content|content:encoded'));
-                const titel = stripHtml(get('title')) || beschrijving;
-                const ruweDatum = get('pubDate|dc:date|published|updated|date');
-                const tijd = leesDatum(ruweDatum, titel, beschrijving);
-                const link = get('link') || item.getElementsByTagName('link')[0]?.getAttribute('href') || '';
+                const linkEl = item.getElementsByTagName('link')[0];
+                const link = get('link') || (linkEl && linkEl.getAttribute('href')) || '';
                 return {
-                    id: get('guid|id') || link || titel + ruweDatum,
+                    titel: get('title'),
+                    beschrijving: get('description|summary|content|content:encoded'),
+                    ruweDatum: get('pubDate|dc:date|published|updated|date'),
+                    categorie: [...item.getElementsByTagName('category')].map(c => c.textContent || c.getAttribute('term') || '').join(' '),
+                    id: get('guid|id') || link,
+                };
+            });
+        }
+
+        // Ruwe items omzetten naar meldingen voor het scherm
+        function verwerk(ruw) {
+            const alle = ruw.map(r => {
+                const beschrijving = stripHtml(r.beschrijving);
+                const titel = stripHtml(r.titel) || beschrijving;
+                const tijd = leesDatum(r.ruweDatum, titel, beschrijving);
+                return {
+                    id: r.id || titel + (r.ruweDatum || ''),
                     titel,
                     // Tekst voor op het scherm: zonder de 7-cijferige capcodes
                     tekst: titel.replace(/\b\d{7}\b/g, '').replace(/\s+/g, ' ').trim() || titel,
                     beschrijving,
-                    tijd: tijd ?? Date.now(),
+                    categorie: stripHtml(r.categorie),
+                    tijd: tijd == null ? Date.now() : tijd,
                     geenDatum: tijd == null,
+                    capcodes: welkeCapcodes(titel + ' ' + beschrijving + ' ' + r.categorie),
                 };
             });
 
-            // Toon meldingen voor onze capcode (ook zonder voorloopnul). Staat er geen capcode
-            // in een item, dan is de persoonlijke feed al gefilterd en tonen we het gewoon.
-            const kort = CAPCODE.replace(/^0+/, '');
-            const gefilterd = alle.filter(m => {
-                const t = m.titel + ' ' + m.beschrijving;
-                return t.includes(CAPCODE) || new RegExp('\\b' + kort + '\\b').test(t) || !/\b\d{7}\b/.test(t);
-            });
-            // Filter houdt niets over? Dan is het een feed voor deze capcode met een andere
-            // notatie: toon dan alles in plaats van een leeg scherm.
-            return (gefilterd.length ? gefilterd : alle).sort((a, b) => b.tijd - a.tijd);
+            return alle.filter(m => !isAmbulance(m));
         }
+
+        /* Ambulancemeldingen eruit, bv. "A2 (dia: ja) 12167 Rit 145306 IJweg Nieuw-Vennep".
+         * Herkenning: begint met een ambulance-urgentie (A0, A1, A2, B, B1, B2), of bevat
+         * "dia: ja/nee", een ritnummer ("Rit 145306") of woorden als ambulance/ambu/MKA/lifeliner.
+         * Meldingen voor een van onze capcodes, of die met P 1-3 beginnen, blijven staan.
+         */
+        const AMBULANCE_START = /^\s*(A ?[012]|B ?[12]?)\b/i;
+        const AMBULANCE_TEKST = /\bdia\s*:\s*(ja|nee)\b|\brit\s*\d{4,}\b|\b(ambulance|ambu|mka|mmt|lifeliner|traumaheli)\b/i;
+        function isAmbulance(m) {
+            if (m.capcodes && m.capcodes.length) return false;
+            if (AMBULANCE_START.test(m.titel)) return true;
+            // Begint met P 1-3 / Prio (politie, brandweer): "P 2 Assistentie ambulance" blijft staan
+            if (/^\s*(P ?[123]|prio ?[123])\b/i.test(m.titel)) return false;
+            return AMBULANCE_TEKST.test(m.titel + ' ' + m.beschrijving);
+        }
+
+        /* Dezelfde melding kan in beide feeds staan (met een ander id).
+         * Zelfde tekst (zonder capcodes, spaties en leestekens) binnen 10 minuten = dezelfde melding.
+         * Staat de ene tekst helemaal in de andere en zijn ze ongeveer even lang (min. 80%), dan telt dat ook.
+         * Zo valt een vervolgmelding als "... Haarlem Nacontrole" niet weg.
+         */
+        const sleutel = m => (m.tekst || m.titel).toLowerCase().replace(/\b\d{7}\b/g, '').replace(/[^a-z0-9]/g, '');
+        function ontdubbel(lijst) {
+            const uniek = [];
+            for (const m of [...lijst].sort((a, b) => b.tijd - a.tijd)) {
+                const k = sleutel(m);
+                const lijkt = (x, y) => x === y || (Math.min(x.length, y.length) >= 15 &&
+                    Math.min(x.length, y.length) >= 0.8 * Math.max(x.length, y.length) && (x.includes(y) || y.includes(x)));
+                const dubbel = k.length >= 4 && uniek.find(u => Math.abs(u.tijd - m.tijd) < 10 * 60 * 1000 && lijkt(u.sleutel, k));
+                if (dubbel) {
+                    // Capcodes van beide samenvoegen
+                    dubbel.capcodes = [...new Set([...(dubbel.capcodes || []), ...(m.capcodes || [])])];
+                } else {
+                    uniek.push({ ...m, sleutel: k });
+                }
+            }
+            return uniek;
+        }
+
+        // Welke van onze capcodes staan in de tekst (ook zonder voorloopnul)?
+        function welkeCapcodes(tekst) {
+            return CAPCODES
+                .filter(c => new RegExp('\\b0*' + c.code.replace(/^0+/, '') + '\\b').test(tekst))
+                .map(c => c.code);
+        }
+        const capInfo = code => CAPCODES.find(c => c.code === code);
 
         /* ================= Interpretatie ================= */
         function prio(tekst) {
             const t = ' ' + tekst.toUpperCase() + ' ';
-            if (/\b(P ?1|PRIO ?1|A1|A 1)\b/.test(t)) return { k: 'p1', l: 'PRIO 1' };
-            if (/\b(P ?2|PRIO ?2|A2|A 2)\b/.test(t)) return { k: 'p2', l: 'PRIO 2' };
-            if (/\b(P ?3|PRIO ?3|B1|B2|B 1|B 2)\b/.test(t)) return { k: 'p3', l: 'PRIO 3' };
+            if (/\b(P ?1|PRIO ?1)\b/.test(t)) return { k: 'p1', l: 'PRIO 1' };
+            if (/\b(P ?2|PRIO ?2)\b/.test(t)) return { k: 'p2', l: 'PRIO 2' };
+            if (/\b(P ?3|PRIO ?3)\b/.test(t)) return { k: 'p3', l: 'PRIO 3' };
             return null;
-        }
-
-        function dienst(tekst) {
-            const t = tekst.toLowerCase();
-            if (/brandweer|\bbrw\b|brand|\bbr\b|\bois\b|\bbos\b|\bwoningbrand\b|\bhv\b|\bdv\b|\bts\b/.test(t)) return { k: 'brandweer', l: 'Brandweer' };
-            if (/ambulance|\bambu\b|\bmmt\b|lifeliner|\ba[12]\b|\bb[12]\b/.test(t)) return { k: 'ambulance', l: 'Ambulance' };
-            if (/politie|\bpol\b/.test(t)) return { k: 'politie', l: 'Politie' };
-            return { k: '', l: 'Melding' };
-        }
-
-        // Laatste stuk van de tekst met een postcode/plaatsnaam, als die er in staat
-        function locatie(tekst) {
-            const pc = tekst.match(/\b\d{4}\s?[A-Z]{2}\b.*$/);
-            return pc ? pc[0].trim() : '';
         }
 
         function geleden(ms) {
@@ -402,16 +424,18 @@
             return d === 1 ? 'gisteren' : d + ' dagen geleden';
         }
 
-        const fmtTijd = ms => new Date(ms).toLocaleTimeString('nl-NL', { hour: '2-digit', minute: '2-digit' });
+        const fmtTijd = ms => new Date(ms).toLocaleTimeString('nl-NL', { timeZone: TZ, hour: '2-digit', minute: '2-digit' });
+        const dagVan = ms => new Date(ms).toLocaleDateString('nl-NL', { timeZone: TZ });
         function fmtDag(ms) {
-            const d = new Date(ms), nu = new Date();
-            const gister = new Date(nu); gister.setDate(nu.getDate() - 1);
-            if (d.toDateString() === nu.toDateString()) return 'Vandaag';
-            if (d.toDateString() === gister.toDateString()) return 'Gisteren';
-            return d.toLocaleDateString('nl-NL', { day: 'numeric', month: 'short' });
+            const nu = Date.now();
+            if (dagVan(ms) === dagVan(nu)) return 'Vandaag';
+            if (dagVan(ms) === dagVan(nu - 864e5)) return 'Gisteren';
+            return new Date(ms).toLocaleDateString('nl-NL', { timeZone: TZ, day: 'numeric', month: 'short' });
         }
 
         /* ================= Weergave ================= */
+        function leeg(e) { while (e.firstChild) e.removeChild(e.firstChild); }
+
         function el(tag, cls, tekst) {
             const e = document.createElement(tag);
             if (cls) e.className = cls;
@@ -419,52 +443,70 @@
             return e;
         }
 
-        function badges(m, parent) {
-            const p = prio(m.titel);
-            if (p) parent.appendChild(el('span', 'badge ' + p.k, p.l));
-            if (Date.now() - m.tijd < NIEUW_MS) parent.appendChild(el('span', 'badge nieuw', 'NIEUW'));
+        // Capcode-namen als gekleurde tekst
+        function capLabels(m, parent) {
+            for (const code of m.capcodes || []) {
+                const c = capInfo(code);
+                if (!c) continue;
+                const e = el('span', 'cap', c.naam);
+                e.style.setProperty('--cap', c.kleur);
+                parent.appendChild(e);
+            }
+        }
+        const isNieuw = m => Date.now() - m.tijd < NIEUW_MS;
+
+        // Randkleur van de (eerste) capcode van de melding
+        function kleur(e, m) {
+            const c = capInfo((m.capcodes || [])[0]);
+            if (c) e.style.setProperty('--cap', c.kleur);
         }
 
         function renderHero() {
             const hero = $('hero');
-            hero.replaceChildren();
+            leeg(hero);
             hero.className = 'hero';
+            hero.style.removeProperty('--cap');
 
             if (!meldingen.length) {
-                const leeg = el('div', 'empty', 'Geen recente meldingen voor capcode ' + CAPCODE);
-                hero.appendChild(leeg);
+                hero.appendChild(el('div', 'empty', 'Geen recente meldingen'));
                 return;
             }
 
             const m = meldingen[0];
-            const ds = dienst(m.titel + ' ' + m.beschrijving);
-            if (ds.k) hero.classList.add(ds.k);
-            if (Date.now() - m.tijd < NIEUW_MS) hero.classList.add('fresh');
+            kleur(hero, m);
+            if (isNieuw(m)) hero.classList.add('fresh');
 
-            const top = el('div', 'top');
-            top.appendChild(el('span', 'badge dienst ' + ds.k, ds.l.toUpperCase()));
-            badges(m, top);
-            top.appendChild(el('span', 'ago', geleden(m.tijd)));
-            hero.appendChild(top);
+            const when = el('div', 'when');
+            when.appendChild(el('div', 't', fmtTijd(m.tijd)));
+            when.appendChild(el('div', 'ago', geleden(m.tijd)));
+            when.appendChild(el('div', 'dag', fmtDag(m.tijd)));
+            hero.appendChild(when);
 
-            hero.appendChild(el('div', 'msg', m.tekst || m.titel));
+            const inhoud = el('div', 'inhoud');
+            const tags = el('div', 'tags');
+            const p = prio(m.titel);
+            if (p) tags.appendChild(el('span', 'badge ' + p.k, p.l));
+            if (isNieuw(m)) tags.appendChild(el('span', 'badge nieuw', 'NIEUW'));
+            capLabels(m, tags);
+            if (tags.childElementCount) inhoud.appendChild(tags);
+            inhoud.appendChild(el('div', 'msg', m.tekst || m.titel));
+            hero.appendChild(inhoud);
+        }
 
-            const meta = el('div', 'meta');
-            const blok = (label, waarde) => {
-                const d = el('div', null, label);
-                d.appendChild(el('b', null, waarde));
-                meta.appendChild(d);
-            };
-            blok('Tijd', fmtTijd(m.tijd));
-            blok('Datum', fmtDag(m.tijd));
-            const loc = locatie(m.tekst || m.titel);
-            if (loc) blok('Locatie', loc);
-            hero.appendChild(meta);
+        // Vaste lijst zonder scrollen: rijen die niet meer helemaal passen vallen onderaan weg
+        function passend(lijst) {
+            const onder = lijst.getBoundingClientRect().bottom;
+            for (const e of [...lijst.children].reverse()) {
+                if (e.getBoundingClientRect().bottom <= onder + 1) break;
+                e.remove();
+            }
+            // Geen dagkopje onderaan laten staan zonder meldingen eronder
+            while (lijst.lastElementChild && lijst.lastElementChild.classList.contains('dagkop')) lijst.lastElementChild.remove();
         }
 
         function renderLijst() {
             const lijst = $('lijst');
-            lijst.replaceChildren();
+            leeg(lijst);
             const rest = meldingen.slice(1, 40);
 
             if (!rest.length) {
@@ -472,53 +514,56 @@
                 return;
             }
 
+            let vorigeDag = null, n = 0;
             for (const m of rest) {
-                const ds = dienst(m.titel + ' ' + m.beschrijving);
-                const item = el('div', 'item ' + ds.k);
+                const dag = fmtDag(m.tijd);
+                if (dag !== vorigeDag) {
+                    lijst.appendChild(el('div', 'dagkop', dag));
+                    vorigeDag = dag;
+                }
 
-                const when = el('div', 'when');
-                when.appendChild(el('div', 'h', fmtTijd(m.tijd)));
-                when.appendChild(el('div', 'd', fmtDag(m.tijd)));
-                item.appendChild(when);
+                const rij = el('div', 'rij' + (n++ % 2 ? ' alt' : ''));
+                kleur(rij, m);
+                rij.appendChild(el('div', 't', fmtTijd(m.tijd)));
+
+                const pk = el('div', 'prio');
+                const p = prio(m.titel);
+                if (p) pk.appendChild(el('span', 'badge ' + p.k, p.l));
+                rij.appendChild(pk);
 
                 const body = el('div', 'body');
-                const row = el('div', 'row');
-                row.appendChild(el('span', 'dienst ' + ds.k, ds.l));
-                badges(m, row);
-                body.appendChild(row);
                 body.appendChild(el('div', 'txt', m.tekst || m.titel));
-                item.appendChild(body);
+                const caps = el('div', 'caps');
+                capLabels(m, caps);
+                if (caps.childElementCount) body.appendChild(caps);
+                rij.appendChild(body);
 
-                lijst.appendChild(item);
+                lijst.appendChild(rij);
             }
+            passend(lijst);
         }
 
-        function renderStats() {
-            const nu = Date.now();
-            const middernacht = new Date(); middernacht.setHours(0, 0, 0, 0);
-            $('statVandaag').textContent = meldingen.filter(m => m.tijd >= middernacht.getTime()).length;
-            $('stat24').textContent = meldingen.filter(m => nu - m.tijd < 864e5).length;
-            $('stat7').textContent = meldingen.filter(m => nu - m.tijd < 7 * 864e5).length;
-        }
-
-        function renderStatus(fout) {
+        function renderStatus(fout, route, detail) {
             const dot = $('dot');
+            const wanneer = ms => (fmtDag(ms) === 'Vandaag' ? '' : fmtDag(ms).toLowerCase() + ' ') + fmtTijd(ms);
+            $('statusDetail').textContent = '';
             if (!fout) {
                 dot.className = 'dot ok';
-                $('statusTekst').textContent = 'Live · bijgewerkt ' + fmtTijd(laatsteSucces);
-            } else if (laatsteSucces) {
-                dot.className = 'dot warn';
-                $('statusTekst').textContent = 'Geen verbinding · laatst bijgewerkt ' + fmtTijd(laatsteSucces);
-            } else {
-                dot.className = 'dot err';
-                $('statusTekst').textContent = 'Geen verbinding met de feed';
+                $('statusTekst').textContent = 'Live · bijgewerkt ' + fmtTijd(laatsteSucces) + (route ? ' · via ' + route : '');
+                if (detail) $('statusTekst').textContent += ' · ' + detail;   // één van de feeds faalt
+                return;
             }
+            dot.className = laatsteSucces ? 'dot warn' : 'dot err';
+            $('statusTekst').textContent = laatsteSucces
+                ? 'Geen verbinding · laatst bijgewerkt ' + wanneer(laatsteSucces) + ' · nieuwe poging over ' + OPNIEUW_MS / 1000 + ' s'
+                : 'Geen verbinding met de feed';
+            // Per route wat er misging, zodat de oorzaak op het scherm te lezen is
+            if (detail) $('statusDetail').textContent = detail;
         }
 
         function renderAlles() {
             renderHero();
             renderLijst();
-            renderStats();
         }
 
         /* ================= Cache (zodat de tv na een herstart direct iets toont) ================= */
@@ -526,7 +571,7 @@
             try {
                 const c = JSON.parse(localStorage.getItem(CACHE_KEY) || 'null');
                 if (c && Array.isArray(c.meldingen)) {
-                    meldingen = c.meldingen;
+                    meldingen = c.meldingen.filter(m => !isAmbulance(m));
                     laatsteSucces = c.tijd;
                 }
             } catch (e) { /* geen opslag beschikbaar */ }
@@ -538,9 +583,22 @@
         }
 
         /* ================= Hoofdlus ================= */
+        let bezig = false;
+        let volgendeTimer;
         async function ververs() {
+            if (bezig) return;           // vorige poging loopt nog
+            bezig = true;
+            let ok = true;
             try {
-                const nieuw = parseFeed(await haalFeed());
+                // Zoals Promise.allSettled, maar ook in oudere tv-browsers
+                const resultaten = await Promise.all(FEEDS.map((f, i) => haalFeed(f, i).then(
+                    value => ({ status: 'fulfilled', value }), reason => ({ status: 'rejected', reason }))));
+                const gelukt = [], mislukt = [];
+                resultaten.forEach((res, i) => res.status === 'fulfilled'
+                    ? gelukt.push({ feed: FEEDS[i], ...res.value })
+                    : mislukt.push(FEEDS[i].naam + ' — ' + res.reason.message));
+                if (!gelukt.length) throw new Error(mislukt.join('\n'));
+                const nieuw = gelukt.flatMap(g => verwerk(g.items));
                 // Samenvoegen met wat we al hadden, zodat de historie niet verdwijnt als de feed kort is
                 const bekend = new Map(meldingen.map(m => [m.id, m]));
                 nieuw.forEach(m => {
@@ -548,41 +606,67 @@
                     const oud = bekend.get(m.id);
                     bekend.set(m.id, m.geenDatum && oud ? { ...m, tijd: oud.tijd } : m);
                 });
-                meldingen = [...bekend.values()]
-                    .filter(m => Date.now() - m.tijd < 30 * 864e5)
-                    .sort((a, b) => b.tijd - a.tijd);
+                meldingen = ontdubbel([...bekend.values()]
+                    .filter(m => Date.now() - m.tijd < 30 * 864e5 && !isAmbulance(m)));
                 laatsteSucces = Date.now();
                 bewaarCache();
                 renderAlles();
-                renderStatus(false);
+                renderStatus(false, gelukt.map(g => g.feed.naam + ' (' + g.route + ')').join(' + '),
+                    mislukt.length ? FEEDS.filter(f => !gelukt.some(g => g.feed === f)).map(f => f.naam).join(', ') + ' niet bereikbaar' : '');
             } catch (e) {
                 console.error(e);
                 if (!meldingen.length) {
                     const hero = $('hero');
                     hero.className = 'hero';
-                    hero.replaceChildren(el('div', 'empty', '⚠️ Kan meldingen niet laden'));
-                    hero.firstChild.appendChild(el('small', null, e.message + ' — nieuwe poging over ' + VERVERS_MS / 1000 + ' s'));
+                    leeg(hero);
+                    hero.appendChild(el('div', 'empty', '⚠️ Kan meldingen niet laden'));
+                    hero.firstChild.appendChild(el('small', null,
+                        e.message + '\n\nNieuwe poging over ' + OPNIEUW_MS / 1000 + ' s'));
                 }
-                renderStatus(true);
+                renderStatus(true, null, e.message.replace(/\n/g, ' | '));
+                ok = false;
+            } finally {
+                bezig = false;
             }
+            // Volgende poging: normaal elke minuut, na een fout sneller
+            clearTimeout(volgendeTimer);
+            volgendeTimer = setTimeout(ververs, ok ? VERVERS_MS : OPNIEUW_MS);
         }
 
-        // Lijst langzaam doorbladeren als niet alles op het scherm past
-        setInterval(() => {
-            const lijst = $('lijst');
-            const max = lijst.scrollHeight - lijst.clientHeight;
-            if (max <= 0) return;
-            const volgende = lijst.scrollTop + lijst.clientHeight * 0.8;
-            lijst.scrollTop = volgende >= max + 5 ? 0 : Math.min(volgende, max);
-        }, SCROLL_MS);
+        // Na draaien/verkleinen van het scherm opnieuw bepalen hoeveel meldingen passen
+        let resizeTimer;
+        addEventListener('resize', () => { clearTimeout(resizeTimer); resizeTimer = setTimeout(renderLijst, 300); });
 
         // "x min geleden" en NIEUW-labels actueel houden tussen verversingen door
-        setInterval(() => { if (meldingen.length) { renderHero(); renderStats(); } }, 30 * 1000);
+        setInterval(() => { if (meldingen.length) renderHero(); }, 30 * 1000);
+
+        /* Pagina elke minuut volledig herladen, zodat de tv altijd de nieuwste versie draait.
+         * Alleen als de pagina zelf bereikbaar is (anders zou de Chromecast op een foutpagina blijven
+         * hangen) en niet midden in het ophalen van de feeds. Meldingen blijven via de cache staan.
+         */
+        async function herlaad() {
+            if (bezig) return setTimeout(herlaad, 5000);
+            if (location.protocol !== 'file:') {
+                try {
+                    const res = await fetch(location.href.split('#')[0], { cache: 'reload' });
+                    if (!res.ok) throw new Error('HTTP ' + res.status);
+                } catch (e) {
+                    console.warn('Pagina niet bereikbaar, herladen uitgesteld:', e.message);
+                    return setTimeout(herlaad, 15000);
+                }
+            }
+            location.reload();
+        }
+        setTimeout(herlaad, HERLAAD_MS);
 
         laadCache();
-        if (meldingen.length) { renderAlles(); renderStatus(true); }
+        if (meldingen.length) {
+            renderAlles();
+            // Net herladen: status van de vorige keer tonen i.p.v. kort 'geen verbinding'
+            if (laatsteSucces && Date.now() - laatsteSucces < 3 * 60 * 1000) renderStatus(false);
+            else renderStatus(true);
+        }
         ververs();
-        setInterval(ververs, VERVERS_MS);
     </script>
 </body>
 </html>
