@@ -257,11 +257,11 @@
         const params = new URLSearchParams(location.search);
         const CAPCODE = params.get('capcode') || '0127850';
         const FEED_URL = params.get('feed') ||
-            'https://alarmeringen.nl/feeds/user/e3826aac-12d9-4685-be9e-e30a469de97c.rss';
+            'https://www.alarmeringdroid.nl/rss/a067947f';
         const VERVERS_MS = 60 * 1000;          // nieuwe meldingen ophalen
         const NIEUW_MS = 15 * 60 * 1000;       // melding telt als "nieuw" (knipperend label)
         const SCROLL_MS = 10 * 1000;           // lijst doorbladeren
-        const CACHE_KEY = 'p2000-cache-' + CAPCODE;
+        const CACHE_KEY = 'p2000-cache-' + CAPCODE + '-' + FEED_URL;
 
         // Browsers mogen de feed niet rechtstreeks lezen (CORS), daarom via een proxy.
         const proxies = [
@@ -298,7 +298,7 @@
                     clearTimeout(timer);
                     if (!res.ok) continue;
                     const tekst = p.type === 'json' ? (await res.json()).contents : await res.text();
-                    if (tekst && tekst.includes('<item')) return tekst;
+                    if (tekst && /<(item|entry)[\s>]/.test(tekst)) return tekst;
                 } catch (e) {
                     console.warn('Proxy mislukt:', p.url, e);
                 }
@@ -311,29 +311,61 @@
             return (doc.body.textContent || '').replace(/\s+/g, ' ').trim();
         }
 
+        // Datum uit de feed halen: RFC-822/ISO (pubDate, dc:date, Atom) of Nederlandse notatie in de tekst
+        function leesDatum(...kandidaten) {
+            for (const k of kandidaten) {
+                if (!k) continue;
+                const d = new Date(k);
+                if (!isNaN(d)) return d.getTime();
+                const nl = k.match(/(\d{1,2})[-\/.](\d{1,2})[-\/.](\d{2,4})\D+(\d{1,2}):(\d{2})(?::(\d{2}))?/);
+                if (nl) {
+                    const jaar = nl[3].length === 2 ? 2000 + +nl[3] : +nl[3];
+                    return new Date(jaar, nl[2] - 1, nl[1], nl[4], nl[5], nl[6] || 0).getTime();
+                }
+            }
+            return null;
+        }
+
         function parseFeed(xml) {
             const doc = new DOMParser().parseFromString(xml, 'text/xml');
             if (doc.querySelector('parsererror')) throw new Error('Feed kon niet worden gelezen');
 
-            return [...doc.querySelectorAll('item')].map(item => {
-                const get = sel => item.querySelector(sel)?.textContent || '';
-                const titel = stripHtml(get('title'));
-                const beschrijving = stripHtml(get('description'));
-                const datum = new Date(get('pubDate'));
+            // RSS gebruikt <item>, Atom gebruikt <entry>
+            const items = [...doc.getElementsByTagName('item'), ...doc.getElementsByTagName('entry')];
+            const alle = items.map(item => {
+                const get = naam => {
+                    for (const n of naam.split('|')) {
+                        const e = item.getElementsByTagName(n)[0];
+                        if (e && e.textContent.trim()) return e.textContent.trim();
+                    }
+                    return '';
+                };
+                const beschrijving = stripHtml(get('description|summary|content|content:encoded'));
+                const titel = stripHtml(get('title')) || beschrijving;
+                const ruweDatum = get('pubDate|dc:date|published|updated|date');
+                const tijd = leesDatum(ruweDatum, titel, beschrijving);
+                const link = get('link') || item.getElementsByTagName('link')[0]?.getAttribute('href') || '';
                 return {
-                    id: get('guid') || get('link') || titel + get('pubDate'),
+                    id: get('guid|id') || link || titel + ruweDatum,
                     titel,
                     // Tekst voor op het scherm: zonder de 7-cijferige capcodes
                     tekst: titel.replace(/\b\d{7}\b/g, '').replace(/\s+/g, ' ').trim() || titel,
                     beschrijving,
-                    tijd: isNaN(datum) ? Date.now() : datum.getTime(),
+                    tijd: tijd ?? Date.now(),
+                    geenDatum: tijd == null,
                 };
-            }).filter(m => {
-                // Toon meldingen voor onze capcode. Staat er helemaal geen capcode in het
-                // item, dan is de (persoonlijke) feed al gefilterd en tonen we het gewoon.
-                const alles = m.titel + ' ' + m.beschrijving;
-                return alles.includes(CAPCODE) || !/\b\d{7}\b/.test(alles);
-            }).sort((a, b) => b.tijd - a.tijd);
+            });
+
+            // Toon meldingen voor onze capcode (ook zonder voorloopnul). Staat er geen capcode
+            // in een item, dan is de persoonlijke feed al gefilterd en tonen we het gewoon.
+            const kort = CAPCODE.replace(/^0+/, '');
+            const gefilterd = alle.filter(m => {
+                const t = m.titel + ' ' + m.beschrijving;
+                return t.includes(CAPCODE) || new RegExp('\\b' + kort + '\\b').test(t) || !/\b\d{7}\b/.test(t);
+            });
+            // Filter houdt niets over? Dan is het een feed voor deze capcode met een andere
+            // notatie: toon dan alles in plaats van een leeg scherm.
+            return (gefilterd.length ? gefilterd : alle).sort((a, b) => b.tijd - a.tijd);
         }
 
         /* ================= Interpretatie ================= */
@@ -511,7 +543,11 @@
                 const nieuw = parseFeed(await haalFeed());
                 // Samenvoegen met wat we al hadden, zodat de historie niet verdwijnt als de feed kort is
                 const bekend = new Map(meldingen.map(m => [m.id, m]));
-                nieuw.forEach(m => bekend.set(m.id, m));
+                nieuw.forEach(m => {
+                    // Zonder datum in de feed: tijdstip van eerste keer zien bewaren
+                    const oud = bekend.get(m.id);
+                    bekend.set(m.id, m.geenDatum && oud ? { ...m, tijd: oud.tijd } : m);
+                });
                 meldingen = [...bekend.values()]
                     .filter(m => Date.now() - m.tijd < 30 * 864e5)
                     .sort((a, b) => b.tijd - a.tijd);
