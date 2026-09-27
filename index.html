@@ -103,9 +103,6 @@
             background: var(--panel-2); color: var(--text); white-space: nowrap;
         }
         .hero .badge { font-size: 1.1em; }
-        .badge.p1 { background: var(--prio1); }
-        .badge.p2 { background: var(--prio2); color: #1a1200; }
-        .badge.p3 { background: var(--prio3); }
         .badge.nieuw { background: #fff; color: #000; }
         .cap { color: var(--cap); font-weight: 600; white-space: nowrap; }
         .hero .cap { font-size: 1.15em; }
@@ -127,7 +124,7 @@
         .dagkop::after { content: ''; flex: 1; height: 1px; background: var(--line); }
         .rij {
             display: grid;
-            grid-template-columns: 4.6em 5.4em 1fr auto;
+            grid-template-columns: 4.6em 1fr auto;
             align-items: center;
             gap: 0 1.2em;
             padding: 0.55em 1.2em 0.55em 1em;
@@ -136,7 +133,6 @@
         }
         .rij.alt { background: var(--panel); }
         .rij .t { font-size: 1.35em; font-weight: 700; font-variant-numeric: tabular-nums; }
-        .rij .badge { font-size: 0.8em; padding: 0.2em 0.5em; }
         .rij .body { min-width: 0; }
         .rij .txt {
             font-size: 1.3em; line-height: 1.3;
@@ -216,7 +212,7 @@
         const VERVERS_MS = 60 * 1000;          // nieuwe meldingen ophalen
         const OPNIEUW_MS = 20 * 1000;          // na een mislukte poging sneller opnieuw proberen
         const HERLAAD_MS = 60 * 1000;          // hele pagina opnieuw laden (Chromecast/tv: blijft zo actueel)
-        const NIEUW_MS = 15 * 60 * 1000;       // melding telt als "nieuw" (knipperend label)
+        const NIEUW_MS = 5 * 60 * 1000;        // melding telt als "nieuw" (knipperend label)
         const CACHE_KEY = 'p2000-persalarm-v10';
         // Diagnose: open de pagina met ?debug om per melding te zien of en waarom hij (niet) getoond wordt
         const DEBUG = /[?&]debug\b/.test(location.search);
@@ -451,14 +447,6 @@
         const capInfo = code => CAPCODES.find(c => c.code === code);
 
         /* ================= Interpretatie ================= */
-        function prio(tekst) {
-            const t = ' ' + tekst.toUpperCase() + ' ';
-            if (/\b(P ?1|PRIO ?1)\b/.test(t)) return { k: 'p1', l: 'PRIO 1' };
-            if (/\b(P ?2|PRIO ?2)\b/.test(t)) return { k: 'p2', l: 'PRIO 2' };
-            if (/\b(P ?3|PRIO ?3)\b/.test(t)) return { k: 'p3', l: 'PRIO 3' };
-            return null;
-        }
-
         function geleden(ms) {
             const s = Math.max(0, Math.round((Date.now() - ms) / 1000));
             if (s < 60) return 'zojuist';
@@ -539,8 +527,6 @@
 
             const inhoud = el('div', 'inhoud');
             const tags = el('div', 'tags');
-            const p = prio(m.titel);
-            if (p) tags.appendChild(el('span', 'badge ' + p.k, p.l));
             if (isNieuw(m)) tags.appendChild(el('span', 'badge nieuw', 'NIEUW'));
             bronLabels(m, tags);
             capLabels(m, tags);
@@ -581,11 +567,6 @@
                 const rij = el('div', 'rij' + (n++ % 2 ? ' alt' : ''));
                 kleur(rij, m);
                 rij.appendChild(el('div', 't', fmtTijd(m.tijd)));
-
-                const pk = el('div', 'prio');
-                const p = prio(m.titel);
-                if (p) pk.appendChild(el('span', 'badge ' + p.k, p.l));
-                rij.appendChild(pk);
 
                 const body = el('div', 'body');
                 body.appendChild(el('div', 'txt', m.tekst || m.titel));
