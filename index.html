@@ -22,7 +22,8 @@
         html, body { height: 100%; }
         body {
             margin: 0;
-            background: var(--bg);
+            /* Subtiele diepte i.p.v. een vlak zwart vlak, blijft donker genoeg voor een donkere kamer */
+            background: radial-gradient(ellipse 90% 60% at 50% -10%, #141b26 0%, var(--bg) 55%);
             color: var(--text);
             font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
             /* Alles schaalt mee met de schermbreedte: werkt op 720p, 1080p en 4K */
@@ -39,6 +40,7 @@
             display: flex; align-items: center; justify-content: space-between; gap: 2em;
             padding: 1.1em 2.2vw;
             border-bottom: 1px solid var(--line);
+            box-shadow: 0 0.6em 1.2em -0.6em rgba(0, 0, 0, 0.6);
         }
         .status { display: flex; align-items: center; gap: 0.7em; color: var(--muted); min-width: 0; max-width: 62vw; }
         .status-tekst { display: block; min-width: 0; }
@@ -49,9 +51,10 @@
             -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
         }
         .dot { flex: none; width: 0.7em; height: 0.7em; border-radius: 50%; background: var(--muted); }
-        .dot.ok { background: var(--prio3); box-shadow: 0 0 0.6em var(--prio3); }
+        .dot.ok { background: var(--prio3); box-shadow: 0 0 0.6em var(--prio3); animation: ademen 2.4s ease-in-out infinite; }
         .dot.warn { background: var(--prio2); }
         .dot.err { background: var(--prio1); }
+        @keyframes ademen { 0%, 100% { opacity: 1; } 50% { opacity: 0.55; } }
         .clock { display: flex; align-items: baseline; gap: 1em; white-space: nowrap; }
         .clock .time { font-size: 2.3em; font-weight: 700; font-variant-numeric: tabular-nums; }
         .clock .date { color: var(--muted); font-size: 1.1em; }
@@ -63,11 +66,13 @@
             padding: 1.6em 2.2vw 1.4em;
         }
         .kop {
+            display: flex; align-items: center; gap: 0.6em;
             color: var(--muted);
             text-transform: uppercase; letter-spacing: 0.14em;
             font-size: 0.85em; font-weight: 600;
             margin: 0 0 0.8em;
         }
+        .kop::before { content: ''; width: 0.3em; height: 0.3em; border-radius: 50%; background: var(--dim); }
 
         /* ---------- Laatste melding ---------- */
         .hero {
@@ -75,10 +80,11 @@
             grid-template-columns: 10em 1fr;
             gap: 0 2.2em;
             align-items: center;
-            background: var(--panel);
+            background: linear-gradient(160deg, var(--panel-2), var(--panel));
             border-left: 0.45em solid var(--cap, var(--politie));
             border-radius: 0.7em;
             padding: 1.5em 2em;
+            box-shadow: 0 1em 2.2em -1em rgba(0, 0, 0, 0.55);
         }
         .hero.fresh { animation: pulse 1.8s ease-in-out infinite; }
         @keyframes pulse {
@@ -603,6 +609,7 @@
         function renderLijst() {
             const lijst = $('lijst');
             leeg(lijst);
+            lijst.style.fontSize = '';   // terug naar de standaardschaal vóór het meten hieronder
             const rest = meldingen.slice(1, 40);
 
             if (!rest.length) {
@@ -633,7 +640,21 @@
 
                 lijst.appendChild(rij);
             }
-            passend(lijst);
+
+            // Veel meldingen: onderaan afknippen zoals voorheen. Weinig meldingen: in plaats van
+            // een groot leeg vlak onderaan (ziet er kapot uit op een tv), de lijst iets opschalen
+            // zodat hij het scherm netjes vult, als een scorebord. (scrollHeight is hier geen
+            // betrouwbare maat: die geeft bij kortere inhoud gewoon de containerhoogte terug.)
+            const rect = lijst.getBoundingClientRect();
+            const gebruikt = lijst.lastElementChild ? lijst.lastElementChild.getBoundingClientRect().bottom - rect.top : 0;
+            if (gebruikt > rect.height) {
+                passend(lijst);
+            } else if (gebruikt > 0) {
+                // 0.99 als kleine veiligheidsmarge: de schatting is lineair (gemeten bij schaal 1),
+                // een fractie te veel zou de onderste rij net af laten snijden.
+                const schaal = Math.min(1.6, (rect.height / gebruikt) * 0.99);
+                lijst.style.fontSize = schaal.toFixed(3) + 'em';
+            }
         }
 
         function renderStatus(fout, route, detail) {
@@ -749,7 +770,14 @@
                     // een feed die nu net mislukt telt niet meer mee, ook al lukte hij eerder wel.
                     const gelukt = FEEDS.filter(f => !f.laatsteFout);
                     const mislukt = FEEDS.filter(f => f.laatsteFout);
-                    if (!gelukt.length) throw new Error(mislukt.map(f => f.naam + ' — ' + f.laatsteFout.volledig).join('\n'));
+                    if (!gelukt.length) {
+                        // Kort per feed (bv. "HTTP 503"), niet de volledige route-voor-route lijst van
+                        // alle feeds samen — dat werd onleesbaar breed nu er elf feeds zijn. De volledige
+                        // lijst blijft beschikbaar via de console en ?debug.
+                        const fout = new Error(mislukt.map(f => f.naam + ' (' + f.laatsteFout.kort + ')').join(', '));
+                        fout.volledig = mislukt.map(f => f.naam + ' — ' + f.laatsteFout.volledig).join('\n');
+                        throw fout;
+                    }
                     const alleNieuw = gelukt.flatMap(f => verwerk(f.laatsteItems, f));
                     const nieuw = alleNieuw.filter(m => !isAmbulance(m));
                     laatsteRonde = {
@@ -781,7 +809,7 @@
                         ? [mislukt.map(f => f.naam + ' (' + f.laatsteFout.kort + ')').join(', ') + ' niet bereikbaar'] : [];
                     renderStatus(false, routeSamenvatting, opmerkingen.join(' · '));
                 } catch (e) {
-                    console.error(e);
+                    console.error(e.message + (e.volledig ? '\n' + e.volledig : ''));
                     if (!meldingen.length) {
                         const hero = $('hero');
                         hero.className = 'hero';
