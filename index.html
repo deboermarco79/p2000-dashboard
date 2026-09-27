@@ -3,455 +3,265 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>P2000 Capcode 0127850 Dashboard</title>
+    <title>P2000 TV Dashboard</title>
+    
+    <!-- Tailwind CSS for rapid styling -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- Custom CSS for TV specifics like hiding scrollbars and animations -->
     <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
-
         body {
-            font-family: 'SF Pro Display', -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif;
-            background: linear-gradient(135deg, #0f172a 0%, #1a1a3a 50%, #0f172a 100%);
-            color: #fff;
-            height: 100vh;
-            overflow: hidden;
+            background-color: #050505; /* Very dark background to prevent OLED burn-in */
+            color: #f3f4f6;
+            font-family: 'Inter', ui-sans-serif, system-ui, -apple-system, sans-serif;
+            margin: 0;
+            overflow: hidden; /* Prevent manual scrolling at body level */
         }
 
-        .dashboard {
-            display: flex;
-            flex-direction: column;
-            height: 100vh;
-            padding: 40px;
-            gap: 30px;
+        /* Hide scrollbar for the scrollable container but keep functionality */
+        .no-scrollbar::-webkit-scrollbar {
+            display: none;
+        }
+        .no-scrollbar {
+            -ms-overflow-style: none;  /* IE and Edge */
+            scrollbar-width: none;  /* Firefox */
         }
 
-        .header {
-            text-align: center;
-            border-bottom: 3px solid #ef4444;
-            padding-bottom: 30px;
+        /* Subtle pulse for the "Live" indicator */
+        @keyframes pulse-glow {
+            0%, 100% { opacity: 1; transform: scale(1); }
+            50% { opacity: 0.5; transform: scale(0.9); }
+        }
+        .live-indicator {
+            animation: pulse-glow 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
         }
 
-        .header h1 {
-            font-size: 4em;
-            font-weight: 900;
-            background: linear-gradient(135deg, #ff6b6b, #ff3333);
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
-            background-clip: text;
-            margin-bottom: 15px;
-            letter-spacing: -1px;
+        /* Fade in animation for new items */
+        .fade-in {
+            animation: fadeIn 0.5s ease-in-out forwards;
         }
-
-        .header p {
-            font-size: 1.3em;
-            color: #a0aec0;
-            font-weight: 500;
-        }
-
-        .status-indicator {
-            display: inline-flex;
-            align-items: center;
-            gap: 10px;
-            margin-top: 15px;
-            padding: 10px 20px;
-            background: rgba(34, 197, 94, 0.1);
-            border: 1px solid #22c55e;
-            border-radius: 20px;
-            font-size: 1em;
-            color: #22c55e;
-        }
-
-        .pulse {
-            width: 8px;
-            height: 8px;
-            background: #22c55e;
-            border-radius: 50%;
-            animation: pulse 2s infinite;
-        }
-
-        @keyframes pulse {
-            0%, 100% { opacity: 1; }
-            50% { opacity: 0.4; }
-        }
-
-        .alerts-container {
-            display: grid;
-            grid-template-columns: repeat(2, 1fr);
-            gap: 25px;
-            flex: 1;
-            overflow-y: auto;
-            padding-right: 15px;
-        }
-
-        .alert-card {
-            background: linear-gradient(135deg, rgba(30, 41, 59, 0.8), rgba(15, 23, 42, 0.8));
-            border: 2px solid rgba(148, 163, 184, 0.2);
-            border-left: 5px solid #ef4444;
-            border-radius: 12px;
-            padding: 30px;
-            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-            backdrop-filter: blur(10px);
-            display: flex;
-            flex-direction: column;
-            justify-content: space-between;
-        }
-
-        .alert-card:hover {
-            transform: translateY(-8px);
-            border-color: rgba(239, 68, 68, 0.3);
-            box-shadow: 0 20px 50px rgba(239, 68, 68, 0.2);
-        }
-
-        .alert-card.urgent {
-            border-left-color: #ff0000;
-            border-color: rgba(239, 68, 68, 0.5);
-            background: linear-gradient(135deg, rgba(127, 29, 29, 0.4), rgba(78, 22, 22, 0.4));
-            animation: urgentPulse 1.5s infinite;
-        }
-
-        @keyframes urgentPulse {
-            0%, 100% { box-shadow: 0 0 20px rgba(255, 0, 0, 0.2); }
-            50% { box-shadow: 0 0 40px rgba(255, 0, 0, 0.4); }
-        }
-
-        .alert-badge {
-            display: inline-flex;
-            align-items: center;
-            gap: 8px;
-            width: fit-content;
-            padding: 8px 16px;
-            background: linear-gradient(135deg, rgba(239, 68, 68, 0.2), rgba(220, 38, 38, 0.1));
-            border: 1px solid #dc2626;
-            border-radius: 8px;
-            font-size: 0.9em;
-            font-weight: 600;
-            color: #fca5a5;
-            margin-bottom: 15px;
-        }
-
-        .alert-title {
-            font-size: 1.8em;
-            font-weight: 700;
-            color: #fff;
-            margin-bottom: 15px;
-            line-height: 1.3;
-        }
-
-        .alert-time {
-            font-size: 1em;
-            color: #94a3b8;
-            display: flex;
-            align-items: center;
-            gap: 8px;
-            margin-bottom: 20px;
-        }
-
-        .alert-time::before {
-            content: '⏰';
-            font-size: 1.1em;
-        }
-
-        .alert-location {
-            font-size: 1.4em;
-            font-weight: 600;
-            color: #e0e7ff;
-            margin-bottom: 12px;
-        }
-
-        .alert-description {
-            font-size: 1em;
-            color: #cbd5e1;
-            line-height: 1.6;
-            margin-top: 12px;
-        }
-
-        .footer {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            padding: 25px 30px;
-            background: rgba(15, 23, 42, 0.5);
-            border-top: 1px solid rgba(148, 163, 184, 0.1);
-            border-radius: 12px;
-            backdrop-filter: blur(10px);
-        }
-
-        .timestamp {
-            display: flex;
-            align-items: center;
-            gap: 12px;
-            font-size: 1.1em;
-            color: #94a3b8;
-        }
-
-        .timestamp::before {
-            content: '🕐';
-            font-size: 1.3em;
-        }
-
-        .alert-count {
-            font-size: 1.3em;
-            font-weight: 700;
-            color: #60a5fa;
-            background: rgba(96, 165, 250, 0.1);
-            padding: 12px 25px;
-            border-radius: 20px;
-            border: 1px solid rgba(96, 165, 250, 0.2);
-        }
-
-        .loading {
-            grid-column: 1 / -1;
-            text-align: center;
-            padding: 80px 40px;
-            font-size: 1.5em;
-            color: #94a3b8;
-        }
-
-        .empty-state {
-            grid-column: 1 / -1;
-            text-align: center;
-            padding: 80px 40px;
-        }
-
-        .empty-state h3 {
-            font-size: 1.8em;
-            color: #cbd5e1;
-            margin-bottom: 10px;
-        }
-
-        .empty-state p {
-            font-size: 1.1em;
-            color: #64748b;
-        }
-
-        .error-banner {
-            background: linear-gradient(135deg, rgba(220, 38, 38, 0.2), rgba(185, 28, 28, 0.2));
-            border: 1px solid #dc2626;
-            border-radius: 12px;
-            padding: 20px;
-            margin-bottom: 20px;
-            color: #fca5a5;
-            font-size: 1.05em;
-        }
-
-        .alerts-container::-webkit-scrollbar {
-            width: 8px;
-        }
-
-        .alerts-container::-webkit-scrollbar-track {
-            background: transparent;
-        }
-
-        .alerts-container::-webkit-scrollbar-thumb {
-            background: rgba(148, 163, 184, 0.3);
-            border-radius: 4px;
-        }
-
-        .alerts-container::-webkit-scrollbar-thumb:hover {
-            background: rgba(148, 163, 184, 0.5);
-        }
-
-        @media (max-width: 1600px) {
-            .dashboard {
-                padding: 30px;
-            }
-
-            .header h1 {
-                font-size: 3em;
-            }
-
-            .alert-card {
-                padding: 25px;
-            }
-        }
-
-        @media (max-width: 1280px) {
-            .alerts-container {
-                grid-template-columns: 1fr;
-            }
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
         }
     </style>
 </head>
-<body>
-    <div class="dashboard">
-        <div class="header">
-            <h1>🚨 P2000 MONITOR</h1>
-            <p>Capcode: <strong>0127850</strong></p>
-            <div class="status-indicator">
-                <div class="pulse"></div>
-                <span>Live monitoring actief</span>
+<body class="h-screen w-screen flex flex-col">
+
+    <!-- Header -->
+    <header class="bg-gray-900 border-b-4 border-gray-800 p-6 flex justify-between items-center shadow-lg z-10">
+        <div class="flex items-center gap-4">
+            <div class="w-4 h-4 bg-red-600 rounded-full live-indicator shadow-[0_0_10px_rgba(220,38,38,0.8)]"></div>
+            <h1 class="text-4xl font-extrabold tracking-wider text-gray-100">P2000 <span class="text-gray-500 font-light">MONITOR</span></h1>
+            <span id="update-status" class="ml-4 text-sm font-medium text-gray-500 uppercase tracking-widest bg-gray-800 px-3 py-1 rounded-full">Laden...</span>
+        </div>
+        <div class="text-right">
+            <div id="clock-time" class="text-5xl font-mono font-bold tracking-tight text-white shadow-sm">00:00:00</div>
+            <div id="clock-date" class="text-xl text-gray-400 font-medium mt-1 uppercase tracking-wider">Datum</div>
+        </div>
+    </header>
+
+    <!-- Main Content Area -->
+    <main id="scroll-container" class="flex-1 overflow-y-auto no-scrollbar p-6 scroll-smooth">
+        <div id="feed-container" class="flex flex-col gap-6 max-w-6xl mx-auto pb-32">
+            <!-- Loading Skeleton -->
+            <div class="animate-pulse flex flex-col gap-6">
+                <div class="bg-gray-800 h-32 rounded-xl border-l-8 border-gray-700"></div>
+                <div class="bg-gray-800 h-32 rounded-xl border-l-8 border-gray-700"></div>
+                <div class="bg-gray-800 h-32 rounded-xl border-l-8 border-gray-700"></div>
             </div>
         </div>
+    </main>
 
-        <div id="error-banner"></div>
-
-        <div class="alerts-container" id="alerts">
-            <div class="loading">⏳ Meldingen laden...</div>
-        </div>
-
-        <div class="footer">
-            <div class="timestamp" id="timestamp">--:--</div>
-            <div class="alert-count" id="count">0 meldingen</div>
-        </div>
-    </div>
-
+    <!-- JS Logic -->
     <script>
-        const FEED_URL = 'http://alarmeringen.nl/feeds/user/e3826aac-12d9-4685-be9e-e30a469de97c.rss';
-        const REFRESH_INTERVAL = 15000;
-        const CAPCODE = '0127850';
-        let lastAlerts = [];
+        const RSS_URL = 'http://alarmeringen.nl/feeds/user/e3826aac-12d9-4685-be9e-e30a469de97c.rss';
+        // Using allorigins as a reliable CORS proxy returning raw data
+        const PROXY_URL = `https://api.allorigins.win/raw?url=${encodeURIComponent(RSS_URL)}`;
+        
+        const feedContainer = document.getElementById('feed-container');
+        const updateStatus = document.getElementById('update-status');
+        const scrollContainer = document.getElementById('scroll-container');
 
-        async function fetchAlerts() {
+        // Clock functionality
+        function updateClock() {
+            const now = new Date();
+            document.getElementById('clock-time').textContent = now.toLocaleTimeString('nl-NL', { 
+                hour12: false, 
+                hour: '2-digit', 
+                minute: '2-digit', 
+                second: '2-digit' 
+            });
+            document.getElementById('clock-date').textContent = now.toLocaleDateString('nl-NL', { 
+                weekday: 'long', 
+                day: 'numeric', 
+                month: 'long' 
+            });
+        }
+        setInterval(updateClock, 1000);
+        updateClock();
+
+        // Utility to determine the color theme based on message content
+        function getEmergencyStyle(title, description) {
+            const text = (title + " " + description).toLowerCase();
+            
+            // Fire department (Brandweer)
+            if (text.includes('brandweer') || text.includes('br') || text.includes('brand') || text.includes('binnenbrand') || text.includes('buitenbrand')) {
+                return {
+                    border: 'border-red-600',
+                    bg: 'bg-red-950/20',
+                    textPrimary: 'text-red-400',
+                    glow: 'shadow-[0_0_20px_rgba(220,38,38,0.15)]'
+                };
+            }
+            // Ambulance
+            if (text.includes('ambulance') || text.includes('ambu') || text.includes('a1') || text.includes('a2') || text.includes('rit')) {
+                return {
+                    border: 'border-yellow-500',
+                    bg: 'bg-yellow-950/20',
+                    textPrimary: 'text-yellow-400',
+                    glow: 'shadow-[0_0_20px_rgba(234,179,8,0.15)]'
+                };
+            }
+            // Police / Trauma Heli / Others
+            if (text.includes('politie') || text.includes('lifeliner') || text.includes('traumaheli')) {
+                return {
+                    border: 'border-blue-500',
+                    bg: 'bg-blue-950/20',
+                    textPrimary: 'text-blue-400',
+                    glow: 'shadow-[0_0_20px_rgba(59,130,246,0.15)]'
+                };
+            }
+            
+            // Default (Unknown/Other)
+            return {
+                border: 'border-gray-600',
+                bg: 'bg-gray-800',
+                textPrimary: 'text-gray-300',
+                glow: 'shadow-none'
+            };
+        }
+
+        // Format publication date securely
+        function formatPubDate(dateString) {
             try {
-                // Probeer rechtstreeks de feed op te halen via CORS proxy
-                const proxyUrl = `https://api.allorigins.win/get?url=${encodeURIComponent(FEED_URL)}`;
+                const date = new Date(dateString);
+                const today = new Date();
+                const isToday = date.getDate() === today.getDate() && date.getMonth() === today.getMonth();
                 
-                const response = await fetch(proxyUrl);
-                const data = await response.json();
+                const time = date.toLocaleTimeString('nl-NL', { hour: '2-digit', minute: '2-digit' });
+                return isToday ? `Vandaag, ${time}` : `${date.toLocaleDateString('nl-NL', { day: 'numeric', month: 'short' })} ${time}`;
+            } catch (e) {
+                return dateString; // fallback
+            }
+        }
 
-                if (!data.contents) {
-                    throw new Error('Geen data ontvangen');
-                }
+        // Fetch and parse the RSS feed
+        async function fetchAlarmeringen() {
+            try {
+                updateStatus.textContent = "Verversen...";
+                updateStatus.classList.replace('text-gray-500', 'text-blue-400');
 
+                const response = await fetch(PROXY_URL, { cache: "no-store" });
+                if (!response.ok) throw new Error('Network response was not ok');
+                
+                const xmlText = await response.text();
                 const parser = new DOMParser();
-                const xml = parser.parseFromString(data.contents, 'application/xml');
-
-                if (xml.getElementsByTagName('parsererror').length) {
-                    throw new Error('XML Parse Error');
+                const xmlDoc = parser.parseFromString(xmlText, "text/xml");
+                
+                const items = xmlDoc.querySelectorAll("item");
+                
+                if (items.length === 0) {
+                    throw new Error("No items found in RSS");
                 }
 
-                const items = xml.getElementsByTagName('item');
-                const alerts = [];
-
-                for (let i = 0; i < Math.min(items.length, 8); i++) {
-                    const item = items[i];
-                    const title = item.getElementsByTagName('title')[0]?.textContent || '';
-                    const description = item.getElementsByTagName('description')[0]?.textContent || '';
-                    const pubDate = item.getElementsByTagName('pubDate')[0]?.textContent || '';
-
-                    const time = new Date(pubDate).toLocaleTimeString('nl-NL', {
-                        hour: '2-digit',
-                        minute: '2-digit'
-                    });
-
-                    const isBrand = title.toLowerCase().includes('brand');
-                    const isUrgent = isBrand || title.toLowerCase().includes('grote');
-
-                    alerts.push({
-                        title: title.substring(0, 80),
-                        description: cleanText(description).substring(0, 150),
-                        time,
-                        urgent: isUrgent,
-                        category: isBrand ? 'Brand' : 'Overig'
-                    });
-                }
-
-                clearError();
-                displayAlerts(alerts);
-                updateTime();
-
-                if (alerts.length > lastAlerts.length) {
-                    playAlert();
-                }
-                lastAlerts = alerts;
+                renderFeed(items);
+                
+                updateStatus.textContent = "Live";
+                updateStatus.classList.replace('text-blue-400', 'text-green-500');
+                
+                // Revert status color back to neutral after a few seconds
+                setTimeout(() => {
+                    updateStatus.classList.replace('text-green-500', 'text-gray-500');
+                }, 3000);
 
             } catch (error) {
-                console.error('Fout:', error);
-                showError('⚠️ Kan meldingen niet laden. Controleer je verbinding.');
+                console.error("Fout bij ophalen feed:", error);
+                updateStatus.textContent = "Fout bij laden";
+                updateStatus.classList.replace('text-gray-500', 'text-red-500');
+                updateStatus.classList.replace('text-blue-400', 'text-red-500');
             }
         }
 
-        function cleanText(html) {
-            const tmp = document.createElement('div');
-            tmp.innerHTML = html;
-            return tmp.textContent || tmp.innerText || '';
-        }
+        // Render XML items to DOM
+        function renderFeed(items) {
+            // Keep old height to check if we should reset scroll
+            const oldScroll = scrollContainer.scrollTop;
+            
+            feedContainer.innerHTML = ''; // Clear current feed
+            
+            let delay = 0;
+            items.forEach((item, index) => {
+                // Safety limit for memory/DOM size on weak TV browsers
+                if(index > 40) return; 
 
-        function displayAlerts(alerts) {
-            const container = document.getElementById('alerts');
+                const title = item.querySelector("title")?.textContent || "Geen titel";
+                const description = item.querySelector("description")?.textContent || "Geen beschrijving";
+                const pubDate = item.querySelector("pubDate")?.textContent || "";
 
-            if (alerts.length === 0) {
-                container.innerHTML = `
-                    <div class="empty-state">
-                        <h3>✓ Geen meldingen</h3>
-                        <p>Wachten op inkomende alarmen...</p>
-                    </div>
-                `;
-                document.getElementById('count').textContent = '0 meldingen';
-                return;
-            }
+                const style = getEmergencyStyle(title, description);
+                const formattedDate = formatPubDate(pubDate);
 
-            container.innerHTML = '';
-
-            alerts.forEach((alert, i) => {
+                // Build Card element
                 const card = document.createElement('div');
-                card.className = `alert-card ${alert.urgent ? 'urgent' : ''}`;
+                card.className = `fade-in p-6 rounded-2xl border-l-[12px] ${style.border} ${style.bg} ${style.glow} bg-gray-900 border border-gray-800 transform transition-all duration-500`;
+                card.style.animationDelay = `${delay}s`;
+                delay += 0.05;
+
                 card.innerHTML = `
-                    <div>
-                        <div class="alert-badge">
-                            <span>${alert.urgent ? '🔴' : '⚪'} ${alert.category}</span>
-                        </div>
-                        <div class="alert-title">${escapeHtml(alert.title)}</div>
-                        <div class="alert-time">${alert.time}</div>
-                        ${alert.description ? `<div class="alert-description">${escapeHtml(alert.description)}</div>` : ''}
+                    <div class="flex justify-between items-start mb-3 gap-4">
+                        <h2 class="text-3xl font-bold ${style.textPrimary} leading-tight flex-1 tracking-wide uppercase">${title}</h2>
+                        <span class="text-2xl font-mono text-gray-400 bg-gray-950 px-4 py-2 rounded-lg border border-gray-800 whitespace-nowrap shadow-inner">${formattedDate}</span>
                     </div>
+                    <p class="text-2xl text-gray-300 leading-relaxed font-light">${description}</p>
                 `;
-                container.appendChild(card);
+                
+                feedContainer.appendChild(card);
             });
 
-            document.getElementById('count').textContent = `${alerts.length} meldingen`;
-        }
-
-        function escapeHtml(text) {
-            const map = {
-                '&': '&amp;',
-                '<': '&lt;',
-                '>': '&gt;',
-                '"': '&quot;',
-                "'": '&#039;'
-            };
-            return text.replace(/[&<>"']/g, m => map[m]);
-        } 
-
-        function updateTime() {
-            const now = new Date().toLocaleTimeString('nl-NL', {
-                hour: '2-digit',
-                minute: '2-digit',
-                second: '2-digit'
-            });
-            document.getElementById('timestamp').textContent = now;
-        }
-
-        function showError(msg) {
-            document.getElementById('error-banner').innerHTML = `<div class="error-banner">${msg}</div>`;
-        }
-
-        function clearError() {
-            document.getElementById('error-banner').innerHTML = '';
-        }
-
-        function playAlert() {
-            try {
-                const ctx = new (window.AudioContext || window.webkitAudioContext)();
-                const osc = ctx.createOscillator();
-                const gain = ctx.createGain();
-                osc.connect(gain);
-                gain.connect(ctx.destination);
-                osc.frequency.value = 880;
-                gain.gain.setValueAtTime(0.2, ctx.currentTime);
-                gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.3);
-                osc.start(ctx.currentTime);
-                osc.stop(ctx.currentTime + 0.3);
-            } catch (e) {
-                console.log('Audio niet beschikbaar');
+            // If we are refreshing, we try to preserve position unless we were at the top
+            if (oldScroll > 100) {
+                scrollContainer.scrollTop = oldScroll;
+            } else {
+                scrollContainer.scrollTop = 0;
             }
         }
 
-        fetchAlerts();
-        setInterval(fetchAlerts, REFRESH_INTERVAL);
-        setInterval(updateTime, 1000);
+        // Auto-scroll logic for TV (Paging mechanism)
+        function autoPageScroll() {
+            const viewportHeight = scrollContainer.clientHeight;
+            const scrollHeight = scrollContainer.scrollHeight;
+            const currentScroll = scrollContainer.scrollTop;
+            
+            // Check if we are near the bottom
+            if (currentScroll + viewportHeight >= scrollHeight - 50) {
+                // Smoothly scroll back to top
+                scrollContainer.scrollTo({ top: 0, behavior: 'smooth' });
+            } else {
+                // Scroll down by ~80% of the viewport height to ensure overlap/context
+                scrollContainer.scrollBy({ top: viewportHeight * 0.8, behavior: 'smooth' });
+            }
+        }
+
+        // Initialize
+        fetchAlarmeringen();
+        
+        // Refresh feed every 60 seconds (60000 ms)
+        setInterval(fetchAlarmeringen, 60000);
+
+        // Page down every 10 seconds (10000 ms) - gives enough time to read
+        setInterval(autoPageScroll, 10000);
+
     </script>
 </body>
 </html>
