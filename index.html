@@ -126,10 +126,10 @@
         .dagkop::after { content: ''; flex: 1; height: 1px; background: var(--line); }
         .rij {
             display: grid;
-            grid-template-columns: 4.6em 5.4em 1fr;
+            grid-template-columns: 4.6em 5.4em 1fr auto;
             align-items: center;
             gap: 0 1.2em;
-            padding: 0.7em 1.2em 0.7em 1em;
+            padding: 0.55em 1.2em 0.55em 1em;
             border-left: 0.3em solid var(--cap, var(--line));
             border-radius: 0.3em;
         }
@@ -141,13 +141,26 @@
             font-size: 1.3em; line-height: 1.3;
             overflow: hidden; white-space: nowrap; text-overflow: ellipsis;
         }
-        .rij .caps { display: flex; flex-wrap: wrap; gap: 0 1.4em; margin-top: 0.2em; font-size: 0.9em; }
+        .rij .caps { display: flex; gap: 1.2em; font-size: 0.9em; justify-content: flex-end; }
 
         .empty {
             color: var(--muted); font-size: 1.5em; text-align: center; padding: 1.5em;
             grid-column: 1 / -1;
         }
         .empty small { display: block; font-size: 0.6em; margin-top: 0.8em; white-space: pre-line; line-height: 1.5; }
+
+        /* ---------- Diagnose (?debug) ---------- */
+        #debug {
+            position: fixed; top: 0; right: 0; bottom: 0; left: 0; z-index: 10; overflow: auto;
+            background: rgba(5, 7, 10, 0.96); padding: 1.5em 2.2vw; font-size: 0.8em;
+        }
+        #debug h2 { margin: 0 0 0.6em; }
+        #debug h3 { margin: 1.4em 0 0.4em; color: var(--muted); }
+        #debug .fout { color: var(--prio1); }
+        #debug table { border-collapse: collapse; width: 100%; }
+        #debug td { padding: 0.3em 0.8em 0.3em 0; border-bottom: 1px solid var(--line); vertical-align: top; }
+        #debug td:first-child { white-space: nowrap; color: var(--muted); }
+        #debug td:last-child { white-space: nowrap; }
     </style>
 </head>
 <body>
@@ -196,7 +209,9 @@
         const OPNIEUW_MS = 20 * 1000;          // na een mislukte poging sneller opnieuw proberen
         const HERLAAD_MS = 60 * 1000;          // hele pagina opnieuw laden (Chromecast/tv: blijft zo actueel)
         const NIEUW_MS = 15 * 60 * 1000;       // melding telt als "nieuw" (knipperend label)
-        const CACHE_KEY = 'p2000-persalarm-v2';
+        const CACHE_KEY = 'p2000-persalarm-v3';
+        // Diagnose: open de pagina met ?debug om per melding te zien of en waarom hij (niet) getoond wordt
+        const DEBUG = /[?&]debug\b/.test(location.search);
         const TZ = 'Europe/Amsterdam';          // tijden altijd in Nederlandse tijd, ook als de Chromecast op UTC staat
 
         /* Een browser mag een feed van een andere site alleen lezen als die site dat toestaat (CORS).
@@ -214,7 +229,8 @@
             { naam: 'codetabs', url: u => 'https://api.codetabs.com/v1/proxy?quest=' + enc(u) },
             { naam: 'cors.lol', url: u => 'https://api.cors.lol/?url=' + enc(u) },
             { naam: 'whateverorigin', url: u => 'https://whateverorigin.org/get?url=' + enc(u), lees: d => d.contents },
-            { naam: 'rss2json', url: u => 'https://api.rss2json.com/v1/api.json?rss_url=' + enc(u), rss2json: true },
+            // Noodroute: gratis rss2json geeft max. 10 meldingen en ververst ongeveer eens per uur
+            { naam: 'rss2json', url: u => 'https://api.rss2json.com/v1/api.json?rss_url=' + enc(u), rss2json: true, nood: true },
         ].filter(r => !r.alleenViaServer || /^https?:$/.test(location.protocol));
 
         const $ = id => document.getElementById(id);
@@ -237,6 +253,7 @@
         FEEDS.forEach(f => {
             f.routeKey = 'p2000-route-' + f.url;
             try { f.voorkeur = localStorage.getItem(f.routeKey); } catch (e) { f.voorkeur = null; }
+            if (f.voorkeur === 'rss2json') f.voorkeur = null;
         });
 
         async function probeer(route, feed, i) {
@@ -276,7 +293,7 @@
             for (const route of volgorde) {
                 try {
                     const items = await probeer(route, feed, i);
-                    if (route.naam !== feed.voorkeur) {
+                    if (route.naam !== feed.voorkeur && !route.nood) {
                         feed.voorkeur = route.naam;
                         try { localStorage.setItem(feed.routeKey, route.naam); } catch (e) { /* geen opslag */ }
                     }
@@ -294,16 +311,34 @@
             return (doc.body.textContent || '').replace(/\s+/g, ' ').trim();
         }
 
-        // Datum uit de feed halen: RFC-822/ISO (pubDate, dc:date, Atom) of Nederlandse notatie in de tekst
+        // Tijd zoals op een Nederlandse klok (jaar, maand 0-11, dag, uur, min, sec) → tijdstip in ms
+        const tzDelen = new Intl.DateTimeFormat('en-US', { timeZone: TZ, hourCycle: 'h23',
+            year: 'numeric', month: 'numeric', day: 'numeric', hour: 'numeric', minute: 'numeric', second: 'numeric' });
+        function tzVerschil(ms) {
+            const d = {}; tzDelen.formatToParts(new Date(ms)).forEach(p => { d[p.type] = +p.value; });
+            return Date.UTC(d.year, d.month - 1, d.day, d.hour % 24, d.minute, d.second) - ms;
+        }
+        function alsNL(j, mnd, dag, u, min, sec) {
+            const gok = Date.UTC(j, mnd, dag, u, min, sec || 0);
+            return gok - tzVerschil(gok - tzVerschil(gok));
+        }
+
+        /* Datum uit de feed halen: RFC-822/ISO (pubDate, dc:date, Atom) of Nederlandse notatie in de tekst.
+         * Staat er geen tijdzone bij, dan is het Nederlandse tijd (niet de tijdzone van de Chromecast).
+         */
+        const HEEFT_ZONE = /(Z|[+-]\d\d:?\d\d|\b(GMT|UTC|UT|CET|CEST|[ECMP][SD]T)\b)\s*$/i;
         function leesDatum(...kandidaten) {
             for (const k of kandidaten) {
                 if (!k) continue;
                 const d = new Date(k);
-                if (!isNaN(d)) return d.getTime();
+                if (!isNaN(d)) {
+                    if (HEEFT_ZONE.test(k.trim())) return d.getTime();
+                    return alsNL(d.getFullYear(), d.getMonth(), d.getDate(), d.getHours(), d.getMinutes(), d.getSeconds());
+                }
                 const nl = k.match(/(\d{1,2})[-\/.](\d{1,2})[-\/.](\d{2,4})\D+(\d{1,2}):(\d{2})(?::(\d{2}))?/);
                 if (nl) {
                     const jaar = nl[3].length === 2 ? 2000 + +nl[3] : +nl[3];
-                    return new Date(jaar, nl[2] - 1, nl[1], nl[4], nl[5], nl[6] || 0).getTime();
+                    return alsNL(jaar, nl[2] - 1, +nl[1], +nl[4], +nl[5], +(nl[6] || 0));
                 }
             }
             return null;
@@ -337,13 +372,15 @@
         }
 
         // Ruwe items omzetten naar meldingen voor het scherm
-        function verwerk(ruw) {
-            const alle = ruw.map(r => {
+        function verwerk(ruw, bron) {
+            return ruw.map(r => {
                 const beschrijving = stripHtml(r.beschrijving);
                 const titel = stripHtml(r.titel) || beschrijving;
                 const tijd = leesDatum(r.ruweDatum, titel, beschrijving);
                 return {
-                    id: r.id || titel + (r.ruweDatum || ''),
+                    // id per feed: twee feeds kunnen hetzelfde nummer voor verschillende meldingen gebruiken
+                    id: bron + ':' + (r.id || titel + (r.ruweDatum || '')),
+                    bron,
                     titel,
                     // Tekst voor op het scherm: zonder de 7-cijferige capcodes
                     tekst: titel.replace(/\b\d{7}\b/g, '').replace(/\s+/g, ' ').trim() || titel,
@@ -354,23 +391,20 @@
                     capcodes: welkeCapcodes(titel + ' ' + beschrijving + ' ' + r.categorie),
                 };
             });
-
-            return alle.filter(m => !isAmbulance(m));
         }
 
         /* Ambulancemeldingen eruit, bv. "A2 (dia: ja) 12167 Rit 145306 IJweg Nieuw-Vennep".
-         * Herkenning: begint met een ambulance-urgentie (A0, A1, A2, B, B1, B2), of bevat
-         * "dia: ja/nee", een ritnummer ("Rit 145306") of woorden als ambulance/ambu/MKA/lifeliner.
-         * Meldingen voor een van onze capcodes, of die met P 1-3 beginnen, blijven staan.
+         * Alleen op duidelijke kenmerken in de meldingstekst zelf (niet in de omschrijving, want daar
+         * staan bij een gezamenlijke alarmering ook ambulance-capcodes):
+         * - begint met een ambulance-urgentie (A0, A1, A2, B1, B2) of met "Ambu"/"Ambulance"
+         * - bevat "dia: ja/nee" of een ritnummer ("Rit 145306")
+         * Meldingen voor een van onze capcodes, of die met P 1-3 beginnen, blijven altijd staan.
          */
-        const AMBULANCE_START = /^\s*(A ?[012]|B ?[12]?)\b/i;
-        const AMBULANCE_TEKST = /\bdia\s*:\s*(ja|nee)\b|\brit\s*\d{4,}\b|\b(ambulance|ambu|mka|mmt|lifeliner|traumaheli)\b/i;
+        const AMBULANCE = /^\s*(A ?[012]|B ?[12]|ambu(lance)?)\b|\bdia\s*:\s*(ja|nee)\b|\brit\s*\d{4,}\b/i;
         function isAmbulance(m) {
             if (m.capcodes && m.capcodes.length) return false;
-            if (AMBULANCE_START.test(m.titel)) return true;
-            // Begint met P 1-3 / Prio (politie, brandweer): "P 2 Assistentie ambulance" blijft staan
             if (/^\s*(P ?[123]|prio ?[123])\b/i.test(m.titel)) return false;
-            return AMBULANCE_TEKST.test(m.titel + ' ' + m.beschrijving);
+            return AMBULANCE.test(m.titel);
         }
 
         /* Dezelfde melding kan in beide feeds staan (met een ander id).
@@ -533,10 +567,11 @@
 
                 const body = el('div', 'body');
                 body.appendChild(el('div', 'txt', m.tekst || m.titel));
+                rij.appendChild(body);
                 const caps = el('div', 'caps');
                 capLabels(m, caps);
-                if (caps.childElementCount) body.appendChild(caps);
-                rij.appendChild(body);
+                rij.appendChild(caps);
+                rij.setAttribute('data-id', m.id);
 
                 lijst.appendChild(rij);
             }
@@ -559,6 +594,38 @@
                 : 'Geen verbinding met de feed';
             // Per route wat er misging, zodat de oorzaak op het scherm te lezen is
             if (detail) $('statusDetail').textContent = detail;
+        }
+
+        // Diagnose (?debug): elke melding uit beide feeds met de reden waarom hij wel/niet op het scherm staat
+        function renderDebug() {
+            if (!DEBUG || !laatsteRonde) return;
+            let paneel = $('debug');
+            if (!paneel) { paneel = el('div'); paneel.id = 'debug'; document.body.appendChild(paneel); }
+            leeg(paneel);
+            const opScherm = {};
+            document.querySelectorAll('#lijst .rij').forEach(e => { opScherm[e.getAttribute('data-id')] = true; });
+            const plek = {}; meldingen.forEach((m, i) => { plek[m.id] = i; });
+            paneel.appendChild(el('h2', null, 'Diagnose · ' + fmtTijd(Date.now()) + ' · ' + meldingen.length + ' meldingen in geheugen'));
+            laatsteRonde.mislukt.forEach(f => paneel.appendChild(el('p', 'fout', 'Niet bereikbaar: ' + f)));
+            for (const g of laatsteRonde.gelukt) {
+                const items = laatsteRonde.alle.filter(m => m.bron === g.feed.naam);
+                paneel.appendChild(el('h3', null, g.feed.naam + ' — via ' + g.route + ' — ' + items.length + ' meldingen in de feed'));
+                const tabel = el('table');
+                for (const m of items) {
+                    let reden;
+                    if (isAmbulance(m)) reden = '✗ weggefilterd: ambulance';
+                    else if (Date.now() - m.tijd >= 30 * 864e5) reden = '✗ ouder dan 30 dagen';
+                    else if (plek[m.id] === 0) reden = '✓ hoofdmelding';
+                    else if (opScherm[m.id]) reden = '✓ in de lijst';
+                    else if (plek[m.id] != null) reden = '… past niet meer op het scherm (plek ' + (plek[m.id] + 1) + ')';
+                    else reden = '≡ samengevoegd met dezelfde melding uit de andere feed';
+                    const tr = el('tr');
+                    [fmtDag(m.tijd) + ' ' + fmtTijd(m.tijd), m.titel, (m.capcodes || []).join(' '), reden]
+                        .forEach(t => tr.appendChild(el('td', null, t)));
+                    tabel.appendChild(tr);
+                }
+                paneel.appendChild(tabel);
+            }
         }
 
         function renderAlles() {
@@ -585,6 +652,7 @@
         /* ================= Hoofdlus ================= */
         let bezig = false;
         let volgendeTimer;
+        let laatsteRonde = null;
         async function ververs() {
             if (bezig) return;           // vorige poging loopt nog
             bezig = true;
@@ -598,7 +666,9 @@
                     ? gelukt.push({ feed: FEEDS[i], ...res.value })
                     : mislukt.push(FEEDS[i].naam + ' — ' + res.reason.message));
                 if (!gelukt.length) throw new Error(mislukt.join('\n'));
-                const nieuw = gelukt.flatMap(g => verwerk(g.items));
+                const alleNieuw = gelukt.flatMap(g => verwerk(g.items, g.feed.naam));
+                const nieuw = alleNieuw.filter(m => !isAmbulance(m));
+                laatsteRonde = { gelukt, mislukt, alle: alleNieuw };
                 // Samenvoegen met wat we al hadden, zodat de historie niet verdwijnt als de feed kort is
                 const bekend = new Map(meldingen.map(m => [m.id, m]));
                 nieuw.forEach(m => {
@@ -611,6 +681,7 @@
                 laatsteSucces = Date.now();
                 bewaarCache();
                 renderAlles();
+                renderDebug();
                 renderStatus(false, gelukt.map(g => g.feed.naam + ' (' + g.route + ')').join(' + '),
                     mislukt.length ? FEEDS.filter(f => !gelukt.some(g => g.feed === f)).map(f => f.naam).join(', ') + ' niet bereikbaar' : '');
             } catch (e) {
@@ -657,7 +728,7 @@
             }
             location.reload();
         }
-        setTimeout(herlaad, HERLAAD_MS);
+        if (!DEBUG) setTimeout(herlaad, HERLAAD_MS);
 
         laadCache();
         if (meldingen.length) {
