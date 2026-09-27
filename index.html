@@ -227,6 +227,12 @@
         const enc = encodeURIComponent;
         const routes = [
             { naam: 'eigen server', url: (u, i) => 'feed?bron=' + i, alleenViaServer: true },
+            // Eigen Vercel-functie (api/feed.js): haalt de feed server-naar-server op, dus zonder
+            // CORS-beperking en zonder afhankelijkheid van een wisselvallige gratis proxy van derden.
+            // Bestaat die niet (pagina niet op Vercel, of lokaal geopend), dan faalt dit gewoon en
+            // valt de pagina door naar de volgende route. Geen cache-buster: die functie cacht de
+            // feed zelf 20 s op Vercel's rand, wat de bron minder belast (delen tussen kijkers/tabs).
+            { naam: 'eigen proxy', url: u => '/api/feed?url=' + enc(u), geenBuster: true, alleenHttp: true },
             { naam: 'rechtstreeks', url: u => u },
             { naam: 'allorigins', url: u => 'https://api.allorigins.win/raw?url=' + enc(u) },
             { naam: 'allorigins-json', url: u => 'https://api.allorigins.win/get?url=' + enc(u), lees: d => d.contents },
@@ -235,7 +241,7 @@
             { naam: 'whateverorigin', url: u => 'https://whateverorigin.org/get?url=' + enc(u), lees: d => d.contents },
             // Noodroute: gratis rss2json geeft max. 10 meldingen en ververst ongeveer eens per uur
             { naam: 'rss2json', url: u => 'https://api.rss2json.com/v1/api.json?rss_url=' + enc(u), rss2json: true, nood: true },
-        ].filter(r => !r.alleenViaServer || /^https?:$/.test(location.protocol));
+        ].filter(r => (!r.alleenViaServer && !r.alleenHttp) || /^https?:$/.test(location.protocol));
 
         const $ = id => document.getElementById(id);
 
@@ -265,8 +271,9 @@
             const timer = setTimeout(() => ctrl.abort(), 8000);
             try {
                 let url = route.url(feed.url, i);
-                // Cache-buster alleen op proxy-adressen, niet op de feed zelf
-                if (url !== feed.url) url += (url.includes('?') ? '&' : '?') + '_t=' + Date.now();
+                // Cache-buster alleen op proxy-adressen, niet op de feed zelf en niet op de eigen
+                // Vercel-proxy (die cacht bewust zelf, zie routes hierboven)
+                if (url !== feed.url && !route.geenBuster) url += (url.includes('?') ? '&' : '?') + '_t=' + Date.now();
                 const res = await fetch(url, { cache: 'no-store', signal: ctrl.signal });
                 if (!res.ok) throw new Error('HTTP ' + res.status);
 
