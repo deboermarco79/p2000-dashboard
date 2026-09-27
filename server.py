@@ -30,6 +30,10 @@ FEEDS = [
     "https://www.alarmeringdroid.nl/rss/132e8974",
     "https://www.alarmeringdroid.nl/rss/6fa78810",
     "https://www.alarmeringdroid.nl/rss/a067947f",
+    "https://112hier.nl/feed.json?capcodes=0127850",
+    "https://112hier.nl/feed.json?capcodes=0104972",
+    "https://112hier.nl/feed.json?capcodes=0127185",
+    "https://112hier.nl/feed.json?capcodes=0205625",
 ]
 PORT = int(os.environ.get("PORT", "8000"))
 CACHE_SECONDEN = 20

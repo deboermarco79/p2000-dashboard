@@ -209,12 +209,18 @@
             { naam: 'voorlichter Kennemerland', url: 'https://www.alarmeringdroid.nl/rss/132e8974', dienst: 'Voorlichter van dienst Kennemerland', kleur: '#2dd4bf' },
             { naam: 'voorlichter Noord-Holland-Noord', url: 'https://www.alarmeringdroid.nl/rss/6fa78810', dienst: 'Voorlichter van dienst Noord-Holland-Noord', kleur: '#f472b6' },
             { naam: 'alarmeringdroid politie (2)', url: 'https://www.alarmeringdroid.nl/rss/a067947f', dienst: 'Politie', kleur: '#3e8ff0' },
+            // 112hier.nl filtert hier zelf al per capcode (zie CAPCODES hierboven), dus per
+            // capcode komt daar een eigen, al gefilterde feed vandaan.
+            { naam: '112hier.nl', url: 'https://112hier.nl/feed.json?capcodes=0127850', dienst: 'Politie', kleur: '#3e8ff0', formaat: '112hier' },
+            { naam: '112hier.nl (voorlichter Zaanstreek-Waterland)', url: 'https://112hier.nl/feed.json?capcodes=0104972', dienst: 'Voorlichter van dienst Zaanstreek-Waterland', kleur: '#a78bfa', formaat: '112hier' },
+            { naam: '112hier.nl (voorlichter Kennemerland)', url: 'https://112hier.nl/feed.json?capcodes=0127185', dienst: 'Voorlichter van dienst Kennemerland', kleur: '#2dd4bf', formaat: '112hier' },
+            { naam: '112hier.nl (voorlichter Noord-Holland-Noord)', url: 'https://112hier.nl/feed.json?capcodes=0205625', dienst: 'Voorlichter van dienst Noord-Holland-Noord', kleur: '#f472b6', formaat: '112hier' },
         ];
         const VERVERS_MS = 60 * 1000;          // nieuwe meldingen ophalen
         const OPNIEUW_MS = 20 * 1000;          // na een mislukte poging sneller opnieuw proberen
         const HERLAAD_MS = 60 * 1000;          // hele pagina opnieuw laden (Chromecast/tv: blijft zo actueel)
         const NIEUW_MS = 5 * 60 * 1000;        // melding telt als "nieuw" (knipperend label)
-        const CACHE_KEY = 'p2000-persalarm-v10';
+        const CACHE_KEY = 'p2000-persalarm-v12';
         // Diagnose: open de pagina met ?debug om per melding te zien of en waarom hij (niet) getoond wordt
         const DEBUG = /[?&]debug\b/.test(location.search);
         const TZ = 'Europe/Amsterdam';          // tijden altijd in Nederlandse tijd, ook als de Chromecast op UTC staat
@@ -285,6 +291,13 @@
                 const res = await fetch(url, { cache: 'no-store', signal: ctrl.signal });
                 if (!res.ok) throw new Error('HTTP ' + res.status);
 
+                if (feed.formaat === '112hier') {
+                    const tekst = route.lees ? route.lees(await res.json()) : await res.text();
+                    let d;
+                    try { d = JSON.parse(tekst); } catch (e) { throw new Error('antwoord is geen geldige JSON'); }
+                    if (!Array.isArray(d.meldingen)) throw new Error('antwoord is geen 112hier-feed');
+                    return lees112Hier(d.meldingen);
+                }
                 if (route.rss2json) {
                     const d = await res.json();
                     if (d.status !== 'ok' || !Array.isArray(d.items)) throw new Error(d.message || 'geen feed');
@@ -399,6 +412,20 @@
                     id: get('guid|id') || link,
                 };
             });
+        }
+
+        // 112hier.nl geeft een gestructureerde JSON-feed. Het filter op onze capcode (0127850)
+        // gebeurt al door 112hier.nl zelf via ?capcodes=... in de feed-URL hierboven, dus hier
+        // alleen nog omzetten naar de vorm die de rest van de pagina verwacht.
+        function lees112Hier(meldingen) {
+            return meldingen.map(m => ({
+                titel: m.bericht || m.leesbaar || '',
+                beschrijving: m.leesbaar || '',
+                categorie: [m.dienst, m.urgentie, ...(m.capcodes || [])].filter(Boolean).join(' '),
+                ruweDatum: m.ontvangen,
+                id: m.id != null ? String(m.id) : (m.url || ''),
+                alles: JSON.stringify(m),   // hele item, om capcodes in te zoeken
+            }));
         }
 
         // Ruwe items omzetten naar meldingen voor het scherm
