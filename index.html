@@ -222,14 +222,14 @@
 
     <script>
         /* ================= Instellingen =================
-         * Alleen politie, capcode 0127850, via de alarmeringdroid-feed.
+         * Alleen politie (capcode 0127850) uit de alarmeringdroid-feed; ambulance wordt weggefilterd.
          */
         const CAPCODE = '0127850';
-        const FEED_URL = 'https://www.alarmeringdroid.nl/rss/a067947f';
+        const FEED_URL = 'https://www.alarmeringdroid.nl/rss/7738690e';
         const VERVERS_MS = 60 * 1000;          // nieuwe meldingen ophalen
         const NIEUW_MS = 15 * 60 * 1000;       // melding telt als "nieuw" (knipperend label)
         const SCROLL_MS = 10 * 1000;           // lijst doorbladeren
-        const CACHE_KEY = 'p2000-politie-' + CAPCODE;
+        const CACHE_KEY = 'p2000-politie-' + CAPCODE + '-' + FEED_URL;
 
         /* Een browser mag een feed van een andere site alleen lezen als die site dat toestaat (CORS).
          * Daarom proberen we een reeks routes; de route die werkt wordt onthouden en voortaan eerst gebruikt.
@@ -284,6 +284,7 @@
                     if (d.status !== 'ok' || !Array.isArray(d.items)) throw new Error(d.message || 'geen feed');
                     return d.items.map(i => ({
                         titel: i.title, beschrijving: i.description || i.content,
+                        categorie: (i.categories || []).join(' '),
                         // rss2json geeft "2026-09-27 04:41:00" in UTC
                         ruweDatum: /^\d{4}-\d\d-\d\d \d/.test(i.pubDate || '') ? i.pubDate.replace(' ', 'T') + 'Z' : i.pubDate,
                         id: i.guid || i.link,
@@ -358,9 +359,32 @@
                     titel: get('title'),
                     beschrijving: get('description|summary|content|content:encoded'),
                     ruweDatum: get('pubDate|dc:date|published|updated|date'),
+                    categorie: [...item.getElementsByTagName('category')].map(c => c.textContent || c.getAttribute('term') || '').join(' '),
                     id: get('guid|id') || link,
                 };
             });
+        }
+
+        /* Is dit een politiemelding?
+         * - Heeft de feed een categorie/dienst, dan is die leidend.
+         * - Anders: ambulance herkennen aan hun urgentiecodes (A1, A2, B1, B2) en woorden als
+         *   ambulance/ambu/MKA/lifeliner; politie aan P 1-3 / Prio 1-3 of het woord politie.
+         */
+        const AMBULANCE = /\b(ambulance|ambu|mka|mmt|lifeliner|traumaheli|zorgambulance)\b|\b[AB] ?[12]\b/i;
+        const BRANDWEER = /\bbrandweer\b|\bbrw\b/i;
+        const POLITIE = /\bpolitie\b|\bpol\b|\bP ?[123]\b|\bprio ?[123]\b/i;
+        function isPolitie(m) {
+            const cat = m.categorie || '';
+            if (/politie/i.test(cat)) return true;
+            if (AMBULANCE.test(cat) || BRANDWEER.test(cat)) return false;
+
+            const t = m.titel + ' ' + m.beschrijving;
+            if (/\bpolitie\b/i.test(t)) return true;
+            // Begint de melding met een ambulance-urgentiecode, dan is het ambulance
+            if (/^\s*[AB] ?[12]\b/i.test(m.titel)) return false;
+            if (AMBULANCE.test(t) && !POLITIE.test(m.titel)) return false;
+            if (BRANDWEER.test(t)) return false;
+            return true;
         }
 
         // Ruwe items omzetten naar meldingen voor het scherm
@@ -375,21 +399,25 @@
                     // Tekst voor op het scherm: zonder de 7-cijferige capcodes
                     tekst: titel.replace(/\b\d{7}\b/g, '').replace(/\s+/g, ' ').trim() || titel,
                     beschrijving,
+                    categorie: stripHtml(r.categorie),
                     tijd: tijd ?? Date.now(),
                     geenDatum: tijd == null,
                 };
             });
 
+            // Alleen politie: ambulance (en brandweer) eruit
+            const politie = alle.filter(isPolitie);
+
             // Toon meldingen voor onze capcode (ook zonder voorloopnul). Staat er geen capcode
             // in een item, dan is de persoonlijke feed al gefilterd en tonen we het gewoon.
             const kort = CAPCODE.replace(/^0+/, '');
-            const gefilterd = alle.filter(m => {
+            const gefilterd = politie.filter(m => {
                 const t = m.titel + ' ' + m.beschrijving;
                 return t.includes(CAPCODE) || new RegExp('\\b' + kort + '\\b').test(t) || !/\b\d{7}\b/.test(t);
             });
             // Filter houdt niets over? Dan is het een feed voor deze capcode met een andere
             // notatie: toon dan alles in plaats van een leeg scherm.
-            return (gefilterd.length ? gefilterd : alle).sort((a, b) => b.tijd - a.tijd);
+            return (gefilterd.length ? gefilterd : politie).sort((a, b) => b.tijd - a.tijd);
         }
 
         /* ================= Interpretatie ================= */

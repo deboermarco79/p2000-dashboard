@@ -20,7 +20,7 @@ import time
 import urllib.request
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 
-FEED_URL = "https://www.alarmeringdroid.nl/rss/a067947f"
+FEED_URL = "https://www.alarmeringdroid.nl/rss/7738690e"
 PORT = int(os.environ.get("PORT", "8000"))
 CACHE_SECONDEN = 20
 MAP = os.path.dirname(os.path.abspath(__file__))
