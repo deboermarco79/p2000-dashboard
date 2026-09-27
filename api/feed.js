@@ -18,7 +18,7 @@ const TOEGESTAAN = [
     'https://www.alarmeringdroid.nl/rss/a067947f',
 ];
 
-module.exports = async (req, res) => {
+async function handler(req, res) {
     const url = typeof req.query.url === 'string' ? req.query.url : '';
 
     if (!TOEGESTAAN.includes(url)) {
@@ -33,16 +33,18 @@ module.exports = async (req, res) => {
         res.setHeader('Cache-Control', 's-maxage=20, stale-while-revalidate=40');
     };
 
-    // Ruim onder Vercel's eigen functietijdslimiet, zodat dit een nette foutmelding
-    // teruggeeft in plaats van dat Vercel de functie hardhandig afbreekt.
+    // Ruim onder Vercel's functietijdslimiet (zie maxDuration hierboven), zodat dit een
+    // nette foutmelding teruggeeft in plaats van dat Vercel de functie hardhandig afbreekt.
     const ctrl = new AbortController();
-    const timer = setTimeout(() => ctrl.abort(), 8000);
+    const timer = setTimeout(() => ctrl.abort(), 15000);
     try {
         const upstream = await fetch(url, {
             signal: ctrl.signal,
             headers: {
-                'User-Agent': 'Mozilla/5.0 (P2000 dashboard; +https://vercel.com)',
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36',
                 Accept: 'application/rss+xml, application/xml, text/xml, */*',
+                'Accept-Language': 'nl-NL,nl;q=0.9,en;q=0.8',
+                Referer: new URL(url).origin + '/',
             },
         });
         const tekst = await upstream.text();
@@ -55,4 +57,10 @@ module.exports = async (req, res) => {
     } finally {
         clearTimeout(timer);
     }
-};
+}
+
+// Sommige bronnen zijn trager voor drukbezochte feeds of weren duidelijk herkenbare bots.
+// Geef de functie dus wat extra tijd (Vercel staat dit toe op de meeste tiers) en stuur
+// headers mee die op een gewone browser lijken, in plaats van een opvallende eigen naam.
+handler.config = { maxDuration: 20 };
+module.exports = handler;
