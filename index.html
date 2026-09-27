@@ -191,7 +191,8 @@
 
     <script>
         /* ================= Instellingen =================
-         * Persalarmen voor deze capcodes, uit twee feeds tegelijk (zie FEEDS):
+         * Capcodes met een eigen label en kleur, als hun nummer in een melding staat.
+         * Er wordt niet op gefilterd: alle meldingen uit beide feeds (zie FEEDS) worden getoond.
          */
         const CAPCODES = [
             { code: '0127850', naam: 'Politie Noord-Holland · Persalarm', kleur: '#3e8ff0' },
@@ -200,7 +201,7 @@
             { code: '0205625', naam: 'Woordvoerder VR Noord-Holland-Noord', kleur: '#f472b6' },
         ];
         // Beide feeds worden opgehaald en samengevoegd; valt er één uit, dan komt de andere nog door.
-        // Alles uit beide feeds wordt getoond; dubbele meldingen worden samengevoegd.
+        // Alles uit beide feeds wordt getoond; dezelfde melding uit beide feeds wordt één keer getoond.
         const FEEDS = [
             { naam: 'alarmeringen.nl', url: 'https://alarmeringen.nl/feeds/user/e3826aac-12d9-4685-be9e-e30a469de97c.rss' },
             { naam: 'alarmeringdroid', url: 'https://www.alarmeringdroid.nl/rss/7738690e' },
@@ -209,7 +210,7 @@
         const OPNIEUW_MS = 20 * 1000;          // na een mislukte poging sneller opnieuw proberen
         const HERLAAD_MS = 60 * 1000;          // hele pagina opnieuw laden (Chromecast/tv: blijft zo actueel)
         const NIEUW_MS = 15 * 60 * 1000;       // melding telt als "nieuw" (knipperend label)
-        const CACHE_KEY = 'p2000-persalarm-v3';
+        const CACHE_KEY = 'p2000-persalarm-v5';
         // Diagnose: open de pagina met ?debug om per melding te zien of en waarom hij (niet) getoond wordt
         const DEBUG = /[?&]debug\b/.test(location.search);
         const TZ = 'Europe/Amsterdam';          // tijden altijd in Nederlandse tijd, ook als de Chromecast op UTC staat
@@ -275,6 +276,7 @@
                         // rss2json geeft "2026-09-27 04:41:00" in UTC
                         ruweDatum: /^\d{4}-\d\d-\d\d \d/.test(i.pubDate || '') ? i.pubDate.replace(' ', 'T') + 'Z' : i.pubDate,
                         id: i.guid || i.link,
+                        alles: JSON.stringify(i),           // hele item, om capcodes in te zoeken
                     }));
                 }
                 const tekst = route.lees ? route.lees(await res.json()) : await res.text();
@@ -366,6 +368,8 @@
                     beschrijving: get('description|summary|content|content:encoded'),
                     ruweDatum: get('pubDate|dc:date|published|updated|date'),
                     categorie: [...item.getElementsByTagName('category')].map(c => c.textContent || c.getAttribute('term') || '').join(' '),
+                    // hele item (alle velden, links en attributen), om capcodes in te zoeken
+                    alles: new XMLSerializer().serializeToString(item),
                     id: get('guid|id') || link,
                 };
             });
@@ -388,23 +392,9 @@
                     categorie: stripHtml(r.categorie),
                     tijd: tijd == null ? Date.now() : tijd,
                     geenDatum: tijd == null,
-                    capcodes: welkeCapcodes(titel + ' ' + beschrijving + ' ' + r.categorie),
+                    capcodes: welkeCapcodes([titel, beschrijving, r.categorie, r.alles].join(' ')),
                 };
             });
-        }
-
-        /* Ambulancemeldingen eruit, bv. "A2 (dia: ja) 12167 Rit 145306 IJweg Nieuw-Vennep".
-         * Alleen op duidelijke kenmerken in de meldingstekst zelf (niet in de omschrijving, want daar
-         * staan bij een gezamenlijke alarmering ook ambulance-capcodes):
-         * - begint met een ambulance-urgentie (A0, A1, A2, B1, B2) of met "Ambu"/"Ambulance"
-         * - bevat "dia: ja/nee" of een ritnummer ("Rit 145306")
-         * Meldingen voor een van onze capcodes, of die met P 1-3 beginnen, blijven altijd staan.
-         */
-        const AMBULANCE = /^\s*(A ?[012]|B ?[12]|ambu(lance)?)\b|\bdia\s*:\s*(ja|nee)\b|\brit\s*\d{4,}\b/i;
-        function isAmbulance(m) {
-            if (m.capcodes && m.capcodes.length) return false;
-            if (/^\s*(P ?[123]|prio ?[123])\b/i.test(m.titel)) return false;
-            return AMBULANCE.test(m.titel);
         }
 
         /* Dezelfde melding kan in beide feeds staan (met een ander id).
@@ -502,7 +492,7 @@
             hero.style.removeProperty('--cap');
 
             if (!meldingen.length) {
-                hero.appendChild(el('div', 'empty', 'Geen recente meldingen'));
+                hero.appendChild(el('div', 'empty', 'Nog geen meldingen'));
                 return;
             }
 
@@ -585,7 +575,7 @@
             if (!fout) {
                 dot.className = 'dot ok';
                 $('statusTekst').textContent = 'Live · bijgewerkt ' + fmtTijd(laatsteSucces) + (route ? ' · via ' + route : '');
-                if (detail) $('statusTekst').textContent += ' · ' + detail;   // één van de feeds faalt
+                if (detail) $('statusTekst').textContent += ' · ' + detail;   // bv. één van de feeds faalt
                 return;
             }
             dot.className = laatsteSucces ? 'dot warn' : 'dot err';
@@ -613,8 +603,7 @@
                 const tabel = el('table');
                 for (const m of items) {
                     let reden;
-                    if (isAmbulance(m)) reden = '✗ weggefilterd: ambulance';
-                    else if (Date.now() - m.tijd >= 30 * 864e5) reden = '✗ ouder dan 30 dagen';
+                    if (Date.now() - m.tijd >= 30 * 864e5) reden = '✗ ouder dan 30 dagen';
                     else if (plek[m.id] === 0) reden = '✓ hoofdmelding';
                     else if (opScherm[m.id]) reden = '✓ in de lijst';
                     else if (plek[m.id] != null) reden = '… past niet meer op het scherm (plek ' + (plek[m.id] + 1) + ')';
@@ -638,7 +627,7 @@
             try {
                 const c = JSON.parse(localStorage.getItem(CACHE_KEY) || 'null');
                 if (c && Array.isArray(c.meldingen)) {
-                    meldingen = c.meldingen.filter(m => !isAmbulance(m));
+                    meldingen = c.meldingen;
                     laatsteSucces = c.tijd;
                 }
             } catch (e) { /* geen opslag beschikbaar */ }
@@ -666,9 +655,8 @@
                     ? gelukt.push({ feed: FEEDS[i], ...res.value })
                     : mislukt.push(FEEDS[i].naam + ' — ' + res.reason.message));
                 if (!gelukt.length) throw new Error(mislukt.join('\n'));
-                const alleNieuw = gelukt.flatMap(g => verwerk(g.items, g.feed.naam));
-                const nieuw = alleNieuw.filter(m => !isAmbulance(m));
-                laatsteRonde = { gelukt, mislukt, alle: alleNieuw };
+                const nieuw = gelukt.flatMap(g => verwerk(g.items, g.feed.naam));
+                laatsteRonde = { gelukt, mislukt, alle: nieuw };
                 // Samenvoegen met wat we al hadden, zodat de historie niet verdwijnt als de feed kort is
                 const bekend = new Map(meldingen.map(m => [m.id, m]));
                 nieuw.forEach(m => {
@@ -677,13 +665,14 @@
                     bekend.set(m.id, m.geenDatum && oud ? { ...m, tijd: oud.tijd } : m);
                 });
                 meldingen = ontdubbel([...bekend.values()]
-                    .filter(m => Date.now() - m.tijd < 30 * 864e5 && !isAmbulance(m)));
+                    .filter(m => Date.now() - m.tijd < 30 * 864e5));
                 laatsteSucces = Date.now();
                 bewaarCache();
                 renderAlles();
                 renderDebug();
-                renderStatus(false, gelukt.map(g => g.feed.naam + ' (' + g.route + ')').join(' + '),
-                    mislukt.length ? FEEDS.filter(f => !gelukt.some(g => g.feed === f)).map(f => f.naam).join(', ') + ' niet bereikbaar' : '');
+                const opmerkingen = [];
+                if (mislukt.length) opmerkingen.push(FEEDS.filter(f => !gelukt.some(g => g.feed === f)).map(f => f.naam).join(', ') + ' niet bereikbaar');
+                renderStatus(false, gelukt.map(g => g.feed.naam + ' (' + g.route + ')').join(' + '), opmerkingen.join(' · '));
             } catch (e) {
                 console.error(e);
                 if (!meldingen.length) {
