@@ -3,265 +3,164 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>P2000 TV Dashboard</title>
-    
-    <!-- Tailwind CSS for rapid styling -->
-    <script src="https://cdn.tailwindcss.com"></script>
-    
-    <!-- Custom CSS for TV specifics like hiding scrollbars and animations -->
+    <title>P2000 Monitor</title>
     <style>
         body {
-            background-color: #050505; /* Very dark background to prevent OLED burn-in */
-            color: #f3f4f6;
-            font-family: 'Inter', ui-sans-serif, system-ui, -apple-system, sans-serif;
+            background-color: #0a0a0a;
+            color: #ffffff;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
             margin: 0;
-            overflow: hidden; /* Prevent manual scrolling at body level */
+            padding: 0;
+            overflow: hidden; /* Verbergt de scrollbalk op de TV */
         }
-
-        /* Hide scrollbar for the scrollable container but keep functionality */
-        .no-scrollbar::-webkit-scrollbar {
-            display: none;
+        header {
+            background-color: #1a1a1a;
+            padding: 20px 40px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 3px solid #333;
         }
-        .no-scrollbar {
-            -ms-overflow-style: none;  /* IE and Edge */
-            scrollbar-width: none;  /* Firefox */
+        h1 { margin: 0; font-size: 2.5rem; color: #4a90e2; }
+        #clock { font-size: 2.5rem; font-weight: bold; }
+        
+        #container {
+            padding: 20px 40px;
+            height: calc(100vh - 120px);
+            overflow-y: hidden; 
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
         }
-
-        /* Subtle pulse for the "Live" indicator */
-        @keyframes pulse-glow {
-            0%, 100% { opacity: 1; transform: scale(1); }
-            50% { opacity: 0.5; transform: scale(0.9); }
+        .melding {
+            background-color: #222;
+            border-left: 10px solid #555;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.3);
         }
-        .live-indicator {
-            animation: pulse-glow 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
-        }
-
-        /* Fade in animation for new items */
-        .fade-in {
-            animation: fadeIn 0.5s ease-in-out forwards;
-        }
-        @keyframes fadeIn {
-            from { opacity: 0; transform: translateY(10px); }
-            to { opacity: 1; transform: translateY(0); }
-        }
+        
+        /* Automatische kleurcodering op basis van dienst */
+        .brandweer { border-left-color: #e74c3c; } /* Rood */
+        .ambulance { border-left-color: #f1c40f; } /* Geel */
+        .politie { border-left-color: #3498db; }   /* Blauw */
+        
+        .tijd { font-size: 1.5rem; color: #aaa; margin-bottom: 10px; font-weight: bold; }
+        .tekst { font-size: 2rem; line-height: 1.3; }
+        .error { color: #e74c3c; font-size: 2rem; text-align: center; margin-top: 50px; }
     </style>
 </head>
-<body class="h-screen w-screen flex flex-col">
-
-    <!-- Header -->
-    <header class="bg-gray-900 border-b-4 border-gray-800 p-6 flex justify-between items-center shadow-lg z-10">
-        <div class="flex items-center gap-4">
-            <div class="w-4 h-4 bg-red-600 rounded-full live-indicator shadow-[0_0_10px_rgba(220,38,38,0.8)]"></div>
-            <h1 class="text-4xl font-extrabold tracking-wider text-gray-100">P2000 <span class="text-gray-500 font-light">MONITOR</span></h1>
-            <span id="update-status" class="ml-4 text-sm font-medium text-gray-500 uppercase tracking-widest bg-gray-800 px-3 py-1 rounded-full">Laden...</span>
-        </div>
-        <div class="text-right">
-            <div id="clock-time" class="text-5xl font-mono font-bold tracking-tight text-white shadow-sm">00:00:00</div>
-            <div id="clock-date" class="text-xl text-gray-400 font-medium mt-1 uppercase tracking-wider">Datum</div>
-        </div>
+<body>
+    <header>
+        <h1>Actuele Alarmeringen</h1>
+        <div id="clock">00:00:00</div>
     </header>
+    
+    <div id="container">
+        <div class="error">Meldingen ophalen...</div>
+    </div>
 
-    <!-- Main Content Area -->
-    <main id="scroll-container" class="flex-1 overflow-y-auto no-scrollbar p-6 scroll-smooth">
-        <div id="feed-container" class="flex flex-col gap-6 max-w-6xl mx-auto pb-32">
-            <!-- Loading Skeleton -->
-            <div class="animate-pulse flex flex-col gap-6">
-                <div class="bg-gray-800 h-32 rounded-xl border-l-8 border-gray-700"></div>
-                <div class="bg-gray-800 h-32 rounded-xl border-l-8 border-gray-700"></div>
-                <div class="bg-gray-800 h-32 rounded-xl border-l-8 border-gray-700"></div>
-            </div>
-        </div>
-    </main>
-
-    <!-- JS Logic -->
     <script>
-        const RSS_URL = 'http://alarmeringen.nl/feeds/user/e3826aac-12d9-4685-be9e-e30a469de97c.rss';
-        // Using allorigins as a reliable CORS proxy returning raw data
-        const PROXY_URL = `https://api.allorigins.win/raw?url=${encodeURIComponent(RSS_URL)}`;
+        // De geüpdatete, veilige HTTPS RSS feed
+        const feedUrl = 'https://alarmeringen.nl/feeds/user/e3826aac-12d9-4685-be9e-e30a469de97c.rss';
+        const container = document.getElementById('container');
         
-        const feedContainer = document.getElementById('feed-container');
-        const updateStatus = document.getElementById('update-status');
-        const scrollContainer = document.getElementById('scroll-container');
-
-        // Clock functionality
-        function updateClock() {
+        // Lijst met CORS proxies om te proberen als fallback
+        const proxies = [
+            `https://corsproxy.io/?${encodeURIComponent(feedUrl)}`,
+            `https://api.allorigins.win/raw?url=${encodeURIComponent(feedUrl)}`,
+            `https://thingproxy.freeboard.io/fetch/${feedUrl}`
+        ];
+        
+        setInterval(() => {
             const now = new Date();
-            document.getElementById('clock-time').textContent = now.toLocaleTimeString('nl-NL', { 
-                hour12: false, 
-                hour: '2-digit', 
-                minute: '2-digit', 
-                second: '2-digit' 
-            });
-            document.getElementById('clock-date').textContent = now.toLocaleDateString('nl-NL', { 
-                weekday: 'long', 
-                day: 'numeric', 
-                month: 'long' 
-            });
-        }
-        setInterval(updateClock, 1000);
-        updateClock();
+            document.getElementById('clock').textContent = now.toLocaleTimeString('nl-NL');
+        }, 1000);
 
-        // Utility to determine the color theme based on message content
-        function getEmergencyStyle(title, description) {
-            const text = (title + " " + description).toLowerCase();
-            
-            // Fire department (Brandweer)
-            if (text.includes('brandweer') || text.includes('br') || text.includes('brand') || text.includes('binnenbrand') || text.includes('buitenbrand')) {
-                return {
-                    border: 'border-red-600',
-                    bg: 'bg-red-950/20',
-                    textPrimary: 'text-red-400',
-                    glow: 'shadow-[0_0_20px_rgba(220,38,38,0.15)]'
-                };
-            }
-            // Ambulance
-            if (text.includes('ambulance') || text.includes('ambu') || text.includes('a1') || text.includes('a2') || text.includes('rit')) {
-                return {
-                    border: 'border-yellow-500',
-                    bg: 'bg-yellow-950/20',
-                    textPrimary: 'text-yellow-400',
-                    glow: 'shadow-[0_0_20px_rgba(234,179,8,0.15)]'
-                };
-            }
-            // Police / Trauma Heli / Others
-            if (text.includes('politie') || text.includes('lifeliner') || text.includes('traumaheli')) {
-                return {
-                    border: 'border-blue-500',
-                    bg: 'bg-blue-950/20',
-                    textPrimary: 'text-blue-400',
-                    glow: 'shadow-[0_0_20px_rgba(59,130,246,0.15)]'
-                };
-            }
-            
-            // Default (Unknown/Other)
-            return {
-                border: 'border-gray-600',
-                bg: 'bg-gray-800',
-                textPrimary: 'text-gray-300',
-                glow: 'shadow-none'
-            };
+        // Functie om de juiste kleur te bepalen
+        function getDienstClass(tekst) {
+            const lowerTekst = tekst.toLowerCase();
+            if (lowerTekst.includes('brandweer') || lowerTekst.includes('brw') || lowerTekst.includes('prio 1') || lowerTekst.includes('prio 2')) return 'brandweer';
+            if (lowerTekst.includes('ambulance') || lowerTekst.includes('ambu') || lowerTekst.includes('a1') || lowerTekst.includes('a2')) return 'ambulance';
+            if (lowerTekst.includes('politie') || lowerTekst.includes('trauma') || lowerTekst.includes('lifeliner')) return 'politie';
+            return '';
         }
 
-        // Format publication date securely
-        function formatPubDate(dateString) {
-            try {
-                const date = new Date(dateString);
-                const today = new Date();
-                const isToday = date.getDate() === today.getDate() && date.getMonth() === today.getMonth();
-                
-                const time = date.toLocaleTimeString('nl-NL', { hour: '2-digit', minute: '2-digit' });
-                return isToday ? `Vandaag, ${time}` : `${date.toLocaleDateString('nl-NL', { day: 'numeric', month: 'short' })} ${time}`;
-            } catch (e) {
-                return dateString; // fallback
-            }
-        }
-
-        // Fetch and parse the RSS feed
-        async function fetchAlarmeringen() {
-            try {
-                updateStatus.textContent = "Verversen...";
-                updateStatus.classList.replace('text-gray-500', 'text-blue-400');
-
-                const response = await fetch(PROXY_URL, { cache: "no-store" });
-                if (!response.ok) throw new Error('Network response was not ok');
-                
-                const xmlText = await response.text();
-                const parser = new DOMParser();
-                const xmlDoc = parser.parseFromString(xmlText, "text/xml");
-                
-                const items = xmlDoc.querySelectorAll("item");
-                
-                if (items.length === 0) {
-                    throw new Error("No items found in RSS");
+        async function fetchWithFallback(urlList) {
+            for (let i = 0; i < urlList.length; i++) {
+                try {
+                    const response = await fetch(urlList[i], {
+                        cache: 'no-store', // Voorkom oude data
+                        headers: {
+                            'Accept': 'application/rss+xml, application/xml, text/xml, */*'
+                        }
+                    });
+                    if (response.ok) {
+                        return await response.text();
+                    }
+                } catch (error) {
+                    console.warn(`Proxy ${i + 1} mislukt, probeer de volgende...`);
+                    // Ga door naar de volgende proxy in de lijst
                 }
+            }
+            throw new Error('Alle proxy servers zijn onbereikbaar.');
+        }
 
-                renderFeed(items);
+        async function laadMeldingen() {
+            try {
+                // Probeer de proxies op volgorde
+                const rawXmlText = await fetchWithFallback(proxies);
                 
-                updateStatus.textContent = "Live";
-                updateStatus.classList.replace('text-blue-400', 'text-green-500');
+                // Parse de ruwe XML direct in de browser
+                const parser = new DOMParser();
+                const xmlDoc = parser.parseFromString(rawXmlText, "text/xml");
                 
-                // Revert status color back to neutral after a few seconds
-                setTimeout(() => {
-                    updateStatus.classList.replace('text-green-500', 'text-gray-500');
-                }, 3000);
+                // Controleer op parse-fouten
+                const parseError = xmlDoc.querySelector("parsererror");
+                if (parseError) throw new Error('Kon de RSS feed niet correct inlezen (XML Parse Error).');
 
+                const items = xmlDoc.querySelectorAll("item");
+                if (items.length === 0) throw new Error('Geen meldingen gevonden in de feed.');
+
+                container.innerHTML = '';
+                
+                items.forEach(item => {
+                    const el = document.createElement('div');
+                    
+                    const title = item.querySelector("title")?.textContent || "Geen details";
+                    const pubDateStr = item.querySelector("pubDate")?.textContent;
+                    
+                    const datum = pubDateStr ? new Date(pubDateStr) : new Date();
+                    const tijdString = datum.toLocaleTimeString('nl-NL', { hour: '2-digit', minute: '2-digit' }) + ' - ' + datum.toLocaleDateString('nl-NL');
+                    
+                    const dienstClass = getDienstClass(title);
+                    el.className = `melding ${dienstClass}`;
+                    
+                    el.innerHTML = `
+                        <div class="tijd">${tijdString}</div>
+                        <div class="tekst">${title}</div>
+                    `;
+                    container.appendChild(el);
+                });
             } catch (error) {
-                console.error("Fout bij ophalen feed:", error);
-                updateStatus.textContent = "Fout bij laden";
-                updateStatus.classList.replace('text-gray-500', 'text-red-500');
-                updateStatus.classList.replace('text-blue-400', 'text-red-500');
+                console.error('Fout bij het ophalen van meldingen:', error);
+                container.innerHTML = '<div class="error">⚠️ Kan meldingen niet laden. <br><span style="font-size: 1rem; color: #aaa;">Probeer de pagina te verversen. <br>(' + error.message + ')</span></div>';
             }
         }
 
-        // Render XML items to DOM
-        function renderFeed(items) {
-            // Keep old height to check if we should reset scroll
-            const oldScroll = scrollContainer.scrollTop;
-            
-            feedContainer.innerHTML = ''; // Clear current feed
-            
-            let delay = 0;
-            items.forEach((item, index) => {
-                // Safety limit for memory/DOM size on weak TV browsers
-                if(index > 40) return; 
-
-                const title = item.querySelector("title")?.textContent || "Geen titel";
-                const description = item.querySelector("description")?.textContent || "Geen beschrijving";
-                const pubDate = item.querySelector("pubDate")?.textContent || "";
-
-                const style = getEmergencyStyle(title, description);
-                const formattedDate = formatPubDate(pubDate);
-
-                // Build Card element
-                const card = document.createElement('div');
-                card.className = `fade-in p-6 rounded-2xl border-l-[12px] ${style.border} ${style.bg} ${style.glow} bg-gray-900 border border-gray-800 transform transition-all duration-500`;
-                card.style.animationDelay = `${delay}s`;
-                delay += 0.05;
-
-                card.innerHTML = `
-                    <div class="flex justify-between items-start mb-3 gap-4">
-                        <h2 class="text-3xl font-bold ${style.textPrimary} leading-tight flex-1 tracking-wide uppercase">${title}</h2>
-                        <span class="text-2xl font-mono text-gray-400 bg-gray-950 px-4 py-2 rounded-lg border border-gray-800 whitespace-nowrap shadow-inner">${formattedDate}</span>
-                    </div>
-                    <p class="text-2xl text-gray-300 leading-relaxed font-light">${description}</p>
-                `;
-                
-                feedContainer.appendChild(card);
-            });
-
-            // If we are refreshing, we try to preserve position unless we were at the top
-            if (oldScroll > 100) {
-                scrollContainer.scrollTop = oldScroll;
-            } else {
-                scrollContainer.scrollTop = 0;
+        let scrollPos = 0;
+        setInterval(() => {
+            const maxScroll = container.scrollHeight - container.clientHeight;
+            if (maxScroll > 0) {
+                scrollPos += container.clientHeight - 20; 
+                if (scrollPos > maxScroll) scrollPos = 0; 
+                container.scrollTo({ top: scrollPos, behavior: 'smooth' });
             }
-        }
+        }, 12000); 
 
-        // Auto-scroll logic for TV (Paging mechanism)
-        function autoPageScroll() {
-            const viewportHeight = scrollContainer.clientHeight;
-            const scrollHeight = scrollContainer.scrollHeight;
-            const currentScroll = scrollContainer.scrollTop;
-            
-            // Check if we are near the bottom
-            if (currentScroll + viewportHeight >= scrollHeight - 50) {
-                // Smoothly scroll back to top
-                scrollContainer.scrollTo({ top: 0, behavior: 'smooth' });
-            } else {
-                // Scroll down by ~80% of the viewport height to ensure overlap/context
-                scrollContainer.scrollBy({ top: viewportHeight * 0.8, behavior: 'smooth' });
-            }
-        }
-
-        // Initialize
-        fetchAlarmeringen();
-        
-        // Refresh feed every 60 seconds (60000 ms)
-        setInterval(fetchAlarmeringen, 60000);
-
-        // Page down every 10 seconds (10000 ms) - gives enough time to read
-        setInterval(autoPageScroll, 10000);
-
+        // Starten
+        laadMeldingen();
+        setInterval(laadMeldingen, 120000); 
     </script>
 </body>
 </html>
