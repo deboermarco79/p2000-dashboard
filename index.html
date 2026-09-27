@@ -352,7 +352,22 @@
                 };
             });
 
-            return alle;
+            return alle.filter(m => !isAmbulance(m));
+        }
+
+        /* Ambulancemeldingen eruit, bv. "A2 (dia: ja) 12167 Rit 145306 IJweg Nieuw-Vennep".
+         * Herkenning: begint met een ambulance-urgentie (A0, A1, A2, B, B1, B2), of bevat
+         * "dia: ja/nee", een ritnummer ("Rit 145306") of woorden als ambulance/ambu/MKA/lifeliner.
+         * Meldingen voor een van onze capcodes, of die met P 1-3 beginnen, blijven staan.
+         */
+        const AMBULANCE_START = /^\s*(A ?[012]|B ?[12]?)\b/i;
+        const AMBULANCE_TEKST = /\bdia\s*:\s*(ja|nee)\b|\brit\s*\d{4,}\b|\b(ambulance|ambu|mka|mmt|lifeliner|traumaheli)\b/i;
+        function isAmbulance(m) {
+            if (m.capcodes && m.capcodes.length) return false;
+            if (AMBULANCE_START.test(m.titel)) return true;
+            // Begint met P 1-3 / Prio (politie, brandweer): "P 2 Assistentie ambulance" blijft staan
+            if (/^\s*(P ?[123]|prio ?[123])\b/i.test(m.titel)) return false;
+            return AMBULANCE_TEKST.test(m.titel + ' ' + m.beschrijving);
         }
 
         /* Dezelfde melding kan in beide feeds staan (met een ander id).
@@ -548,7 +563,7 @@
             try {
                 const c = JSON.parse(localStorage.getItem(CACHE_KEY) || 'null');
                 if (c && Array.isArray(c.meldingen)) {
-                    meldingen = c.meldingen;
+                    meldingen = c.meldingen.filter(m => !isAmbulance(m));
                     laatsteSucces = c.tijd;
                 }
             } catch (e) { /* geen opslag beschikbaar */ }
@@ -582,7 +597,7 @@
                     bekend.set(m.id, m.geenDatum && oud ? { ...m, tijd: oud.tijd } : m);
                 });
                 meldingen = ontdubbel([...bekend.values()]
-                    .filter(m => Date.now() - m.tijd < 30 * 864e5));
+                    .filter(m => Date.now() - m.tijd < 30 * 864e5 && !isAmbulance(m)));
                 laatsteSucces = Date.now();
                 bewaarCache();
                 renderAlles();
