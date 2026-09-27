@@ -147,23 +147,6 @@
             grid-column: 1 / -1;
         }
         .empty small { display: block; font-size: 0.6em; margin-top: 0.8em; white-space: pre-line; line-height: 1.5; }
-
-        /* Staande/kleine schermen: gewoon scrollen */
-        @media (max-aspect-ratio: 1/1) {
-            body { font-size: clamp(14px, 2.4vw, 48px); overflow: auto; height: auto; }
-            header { flex-wrap: wrap; padding: 1em 16px; }
-            main { padding: 16px; }
-            .hero { grid-template-columns: 1fr; gap: 1em; padding: 1.2em; }
-            .hero .when { border-right: 0; padding-right: 0; }
-            #statusTekst, .cap { white-space: normal; }
-            .clock { flex-wrap: wrap; }
-            .rij { grid-template-columns: 3.8em 1fr; gap: 0.3em 1em; }
-            .rij .t { grid-row: 1 / span 2; align-self: start; }
-            .rij .prio, .rij .body { grid-column: 2; }
-            .rij .prio:empty { display: none; }
-            .rij .txt { white-space: normal; }
-            #lijst { overflow: visible; }
-        }
     </style>
 </head>
 <body>
@@ -210,6 +193,7 @@
         ];
         const VERVERS_MS = 60 * 1000;          // nieuwe meldingen ophalen
         const OPNIEUW_MS = 20 * 1000;          // na een mislukte poging sneller opnieuw proberen
+        const HERLAAD_MS = 60 * 1000;          // hele pagina opnieuw laden (Chromecast/tv: blijft zo actueel)
         const NIEUW_MS = 15 * 60 * 1000;       // melding telt als "nieuw" (knipperend label)
         const CACHE_KEY = 'p2000-persalarm-v2';
 
@@ -225,7 +209,6 @@
             { naam: 'rechtstreeks', url: u => u },
             { naam: 'allorigins', url: u => 'https://api.allorigins.win/raw?url=' + enc(u) },
             { naam: 'allorigins-json', url: u => 'https://api.allorigins.win/get?url=' + enc(u), lees: d => d.contents },
-            { naam: 'corsproxy.io', url: u => 'https://corsproxy.io/?url=' + enc(u) },
             { naam: 'codetabs', url: u => 'https://api.codetabs.com/v1/proxy?quest=' + enc(u) },
             { naam: 'cors.lol', url: u => 'https://api.cors.lol/?url=' + enc(u) },
             { naam: 'whateverorigin', url: u => 'https://whateverorigin.org/get?url=' + enc(u), lees: d => d.contents },
@@ -489,7 +472,6 @@
 
         // Vaste lijst zonder scrollen: rijen die niet meer helemaal passen vallen onderaan weg
         function passend(lijst) {
-            if (getComputedStyle(lijst).overflow === 'visible') return;   // staand scherm: alles tonen
             const onder = lijst.getBoundingClientRect().bottom;
             for (const e of [...lijst.children].reverse()) {
                 if (e.getBoundingClientRect().bottom <= onder + 1) break;
@@ -632,8 +614,32 @@
         // "x min geleden" en NIEUW-labels actueel houden tussen verversingen door
         setInterval(() => { if (meldingen.length) renderHero(); }, 30 * 1000);
 
+        /* Pagina elke minuut volledig herladen, zodat de tv altijd de nieuwste versie draait.
+         * Alleen als de pagina zelf bereikbaar is (anders zou de Chromecast op een foutpagina blijven
+         * hangen) en niet midden in het ophalen van de feeds. Meldingen blijven via de cache staan.
+         */
+        async function herlaad() {
+            if (bezig) return setTimeout(herlaad, 5000);
+            if (location.protocol !== 'file:') {
+                try {
+                    const res = await fetch(location.href.split('#')[0], { cache: 'reload' });
+                    if (!res.ok) throw new Error('HTTP ' + res.status);
+                } catch (e) {
+                    console.warn('Pagina niet bereikbaar, herladen uitgesteld:', e.message);
+                    return setTimeout(herlaad, 15000);
+                }
+            }
+            location.reload();
+        }
+        setTimeout(herlaad, HERLAAD_MS);
+
         laadCache();
-        if (meldingen.length) { renderAlles(); renderStatus(true); }
+        if (meldingen.length) {
+            renderAlles();
+            // Net herladen: status van de vorige keer tonen i.p.v. kort 'geen verbinding'
+            if (laatsteSucces && Date.now() - laatsteSucces < 3 * 60 * 1000) renderStatus(false);
+            else renderStatus(true);
+        }
         ververs();
     </script>
 </body>
