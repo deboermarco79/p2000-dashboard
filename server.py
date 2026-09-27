@@ -31,13 +31,13 @@ CACHE_SECONDEN = 20
 MAP = os.path.dirname(os.path.abspath(__file__))
 
 _caches = [{"tijd": 0.0, "data": None, "type": "application/rss+xml"} for _ in FEEDS]
-_slot = threading.Lock()
+_sloten = [threading.Lock() for _ in FEEDS]  # per feed, zodat een trage feed de andere niet ophoudt
 
 
 def haal_feed(bron):
     """Feed ophalen, met een korte cache zodat meerdere schermen de bron niet overbelasten."""
     _cache = _caches[bron]
-    with _slot:
+    with _sloten[bron]:
         if _cache["data"] is not None and time.time() - _cache["tijd"] < CACHE_SECONDEN:
             return _cache["data"], _cache["type"]
         verzoek = urllib.request.Request(FEEDS[bron], headers={
@@ -83,7 +83,12 @@ class Handler(SimpleHTTPRequestHandler):
             self.end_headers()
             self.wfile.write(data)
             return
-        super().do_GET()
+        # Alleen de pagina zelf; de rest van de map (zoals .git) blijft privé
+        if pad in ("/", "/index.html"):
+            self.path = "/index.html"
+            super().do_GET()
+            return
+        self.send_error(404, "Niet gevonden")
 
     def log_message(self, fmt, *args):
         pass  # geen log per verzoek

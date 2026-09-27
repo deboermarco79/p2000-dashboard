@@ -26,6 +26,7 @@
             color: var(--text);
             font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
             /* Alles schaalt mee met de schermbreedte: werkt op 720p, 1080p en 4K */
+            font-size: 1.15vw;                      /* terugval voor oudere tv-browsers */
             font-size: clamp(14px, 1.15vw, 48px);
             overflow: hidden;
             cursor: none;
@@ -196,6 +197,7 @@
         const HERLAAD_MS = 60 * 1000;          // hele pagina opnieuw laden (Chromecast/tv: blijft zo actueel)
         const NIEUW_MS = 15 * 60 * 1000;       // melding telt als "nieuw" (knipperend label)
         const CACHE_KEY = 'p2000-persalarm-v2';
+        const TZ = 'Europe/Amsterdam';          // tijden altijd in Nederlandse tijd, ook als de Chromecast op UTC staat
 
         /* Een browser mag een feed van een andere site alleen lezen als die site dat toestaat (CORS).
          * Daarom proberen we een reeks routes; de route die werkt wordt onthouden en voortaan eerst gebruikt.
@@ -223,8 +225,8 @@
         /* ================= Klok ================= */
         function tik() {
             const nu = new Date();
-            $('tijd').textContent = nu.toLocaleTimeString('nl-NL');
-            const d = nu.toLocaleDateString('nl-NL', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+            $('tijd').textContent = nu.toLocaleTimeString('nl-NL', { timeZone: TZ });
+            const d = nu.toLocaleDateString('nl-NL', { timeZone: TZ, weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
             $('datum').textContent = d.charAt(0).toUpperCase() + d.slice(1);
         }
         tik();
@@ -322,7 +324,8 @@
                     }
                     return '';
                 };
-                const link = get('link') || item.getElementsByTagName('link')[0]?.getAttribute('href') || '';
+                const linkEl = item.getElementsByTagName('link')[0];
+                const link = get('link') || (linkEl && linkEl.getAttribute('href')) || '';
                 return {
                     titel: get('title'),
                     beschrijving: get('description|summary|content|content:encoded'),
@@ -346,7 +349,7 @@
                     tekst: titel.replace(/\b\d{7}\b/g, '').replace(/\s+/g, ' ').trim() || titel,
                     beschrijving,
                     categorie: stripHtml(r.categorie),
-                    tijd: tijd ?? Date.now(),
+                    tijd: tijd == null ? Date.now() : tijd,
                     geenDatum: tijd == null,
                     capcodes: welkeCapcodes(titel + ' ' + beschrijving + ' ' + r.categorie),
                 };
@@ -371,15 +374,18 @@
         }
 
         /* Dezelfde melding kan in beide feeds staan (met een ander id).
-         * Zelfde tekst (zonder capcodes, spaties en leestekens) binnen 5 minuten = dezelfde melding.
+         * Zelfde tekst (zonder capcodes, spaties en leestekens) binnen 10 minuten = dezelfde melding.
+         * Staat de ene tekst helemaal in de andere en zijn ze ongeveer even lang (min. 80%), dan telt dat ook.
+         * Zo valt een vervolgmelding als "... Haarlem Nacontrole" niet weg.
          */
         const sleutel = m => (m.tekst || m.titel).toLowerCase().replace(/\b\d{7}\b/g, '').replace(/[^a-z0-9]/g, '');
         function ontdubbel(lijst) {
             const uniek = [];
             for (const m of [...lijst].sort((a, b) => b.tijd - a.tijd)) {
                 const k = sleutel(m);
-                const dubbel = uniek.find(u => Math.abs(u.tijd - m.tijd) < 5 * 60 * 1000 &&
-                    (u.sleutel === k || (Math.min(k.length, u.sleutel.length) >= 15 && (u.sleutel.startsWith(k) || k.startsWith(u.sleutel)))));
+                const lijkt = (x, y) => x === y || (Math.min(x.length, y.length) >= 15 &&
+                    Math.min(x.length, y.length) >= 0.8 * Math.max(x.length, y.length) && (x.includes(y) || y.includes(x)));
+                const dubbel = k.length >= 4 && uniek.find(u => Math.abs(u.tijd - m.tijd) < 10 * 60 * 1000 && lijkt(u.sleutel, k));
                 if (dubbel) {
                     // Capcodes van beide samenvoegen
                     dubbel.capcodes = [...new Set([...(dubbel.capcodes || []), ...(m.capcodes || [])])];
@@ -418,16 +424,18 @@
             return d === 1 ? 'gisteren' : d + ' dagen geleden';
         }
 
-        const fmtTijd = ms => new Date(ms).toLocaleTimeString('nl-NL', { hour: '2-digit', minute: '2-digit' });
+        const fmtTijd = ms => new Date(ms).toLocaleTimeString('nl-NL', { timeZone: TZ, hour: '2-digit', minute: '2-digit' });
+        const dagVan = ms => new Date(ms).toLocaleDateString('nl-NL', { timeZone: TZ });
         function fmtDag(ms) {
-            const d = new Date(ms), nu = new Date();
-            const gister = new Date(nu); gister.setDate(nu.getDate() - 1);
-            if (d.toDateString() === nu.toDateString()) return 'Vandaag';
-            if (d.toDateString() === gister.toDateString()) return 'Gisteren';
-            return d.toLocaleDateString('nl-NL', { day: 'numeric', month: 'short' });
+            const nu = Date.now();
+            if (dagVan(ms) === dagVan(nu)) return 'Vandaag';
+            if (dagVan(ms) === dagVan(nu - 864e5)) return 'Gisteren';
+            return new Date(ms).toLocaleDateString('nl-NL', { timeZone: TZ, day: 'numeric', month: 'short' });
         }
 
         /* ================= Weergave ================= */
+        function leeg(e) { while (e.firstChild) e.removeChild(e.firstChild); }
+
         function el(tag, cls, tekst) {
             const e = document.createElement(tag);
             if (cls) e.className = cls;
@@ -455,7 +463,7 @@
 
         function renderHero() {
             const hero = $('hero');
-            hero.replaceChildren();
+            leeg(hero);
             hero.className = 'hero';
             hero.style.removeProperty('--cap');
 
@@ -493,12 +501,12 @@
                 e.remove();
             }
             // Geen dagkopje onderaan laten staan zonder meldingen eronder
-            while (lijst.lastElementChild?.classList.contains('dagkop')) lijst.lastElementChild.remove();
+            while (lijst.lastElementChild && lijst.lastElementChild.classList.contains('dagkop')) lijst.lastElementChild.remove();
         }
 
         function renderLijst() {
             const lijst = $('lijst');
-            lijst.replaceChildren();
+            leeg(lijst);
             const rest = meldingen.slice(1, 40);
 
             if (!rest.length) {
@@ -582,7 +590,9 @@
             bezig = true;
             let ok = true;
             try {
-                const resultaten = await Promise.allSettled(FEEDS.map(haalFeed));
+                // Zoals Promise.allSettled, maar ook in oudere tv-browsers
+                const resultaten = await Promise.all(FEEDS.map((f, i) => haalFeed(f, i).then(
+                    value => ({ status: 'fulfilled', value }), reason => ({ status: 'rejected', reason }))));
                 const gelukt = [], mislukt = [];
                 resultaten.forEach((res, i) => res.status === 'fulfilled'
                     ? gelukt.push({ feed: FEEDS[i], ...res.value })
@@ -608,7 +618,8 @@
                 if (!meldingen.length) {
                     const hero = $('hero');
                     hero.className = 'hero';
-                    hero.replaceChildren(el('div', 'empty', '⚠️ Kan meldingen niet laden'));
+                    leeg(hero);
+                    hero.appendChild(el('div', 'empty', '⚠️ Kan meldingen niet laden'));
                     hero.firstChild.appendChild(el('small', null,
                         e.message + '\n\nNieuwe poging over ' + OPNIEUW_MS / 1000 + ' s'));
                 }
