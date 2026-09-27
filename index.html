@@ -5,177 +5,548 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>P2000 Monitor</title>
     <style>
+        :root {
+            --bg: #07090d;
+            --panel: #11151c;
+            --panel-2: #171c25;
+            --line: #252c38;
+            --text: #f2f4f8;
+            --muted: #8b95a7;
+            --accent: #4a90e2;
+            --prio1: #e5484d;
+            --prio2: #f5a524;
+            --prio3: #30a46c;
+            --brandweer: #e5484d;
+            --ambulance: #f5d90a;
+            --politie: #3e8ff0;
+            --overig: #6b7280;
+        }
+        * { box-sizing: border-box; }
+        html, body { height: 100%; }
         body {
-            background-color: #0a0a0a;
-            color: #ffffff;
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
             margin: 0;
-            padding: 0;
-            overflow: hidden; /* Verbergt de scrollbalk op de TV */
+            background: var(--bg);
+            color: var(--text);
+            font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+            /* Alles schaalt mee met de schermbreedte: werkt op 720p, 1080p en 4K */
+            font-size: clamp(14px, 1.15vw, 48px);
+            overflow: hidden;
+            cursor: none;
         }
+
+        /* ---------- Header ---------- */
         header {
-            background-color: #1a1a1a;
-            padding: 20px 40px;
             display: flex;
-            justify-content: space-between;
             align-items: center;
-            border-bottom: 3px solid #333;
+            justify-content: space-between;
+            gap: 2em;
+            height: 11vh;
+            padding: 0 2.2vw;
+            background: var(--panel);
+            border-bottom: 0.2em solid var(--line);
         }
-        h1 { margin: 0; font-size: 2.5rem; color: #4a90e2; }
-        #clock { font-size: 2.5rem; font-weight: bold; }
-        
-        #container {
-            padding: 20px 40px;
-            height: calc(100vh - 120px);
-            overflow-y: hidden; 
-            display: flex;
-            flex-direction: column;
-            gap: 15px;
+        .brand { display: flex; align-items: center; gap: 1em; min-width: 0; }
+        .brand .logo {
+            display: grid; place-items: center;
+            width: 2.8em; height: 2.8em;
+            border-radius: 0.5em;
+            background: var(--prio1);
+            font-weight: 800; font-size: 1.1em;
+            letter-spacing: 0.02em;
         }
-        .melding {
-            background-color: #222;
-            border-left: 10px solid #555;
-            padding: 20px;
-            border-radius: 8px;
-            box-shadow: 0 4px 6px rgba(0,0,0,0.3);
+        .brand h1 { margin: 0; font-size: 2.1em; font-weight: 700; white-space: nowrap; }
+        .brand .sub { color: var(--muted); font-size: 1.05em; margin-top: 0.1em; }
+        .brand .sub b { color: var(--text); font-variant-numeric: tabular-nums; }
+
+        .status {
+            display: flex; align-items: center; gap: 0.6em;
+            color: var(--muted); font-size: 1em; white-space: nowrap;
         }
-        
-        /* Automatische kleurcodering op basis van dienst */
-        .brandweer { border-left-color: #e74c3c; } /* Rood */
-        .ambulance { border-left-color: #f1c40f; } /* Geel */
-        .politie { border-left-color: #3498db; }   /* Blauw */
-        
-        .tijd { font-size: 1.5rem; color: #aaa; margin-bottom: 10px; font-weight: bold; }
-        .tekst { font-size: 2rem; line-height: 1.3; }
-        .error { color: #e74c3c; font-size: 2rem; text-align: center; margin-top: 50px; }
+        .dot { width: 0.8em; height: 0.8em; border-radius: 50%; background: var(--muted); }
+        .dot.ok { background: var(--prio3); box-shadow: 0 0 0.6em var(--prio3); }
+        .dot.warn { background: var(--prio2); }
+        .dot.err { background: var(--prio1); }
+
+        .clock { text-align: right; }
+        .clock .time { font-size: 2.6em; font-weight: 700; font-variant-numeric: tabular-nums; line-height: 1; }
+        .clock .date { color: var(--muted); font-size: 1.05em; margin-top: 0.25em; }
+
+        /* ---------- Layout ---------- */
+        main {
+            display: grid;
+            grid-template-columns: 1.15fr 1fr;
+            gap: 1.6vw;
+            height: 89vh;
+            padding: 1.6vw 2.2vw;
+        }
+        .col { display: flex; flex-direction: column; gap: 1.6vw; min-height: 0; }
+        .label {
+            color: var(--muted);
+            text-transform: uppercase;
+            letter-spacing: 0.12em;
+            font-size: 0.9em;
+            font-weight: 600;
+            margin-bottom: 0.7em;
+        }
+
+        /* ---------- Laatste melding (groot) ---------- */
+        .hero {
+            position: relative;
+            flex: 1;
+            min-height: 0;
+            display: flex; flex-direction: column;
+            background: var(--panel);
+            border: 0.12em solid var(--line);
+            border-left: 0.7em solid var(--overig);
+            border-radius: 0.8em;
+            padding: 1.6em 1.8em;
+            overflow: hidden;
+        }
+        .hero.fresh { animation: pulse 1.6s ease-in-out infinite; }
+        @keyframes pulse {
+            0%, 100% { box-shadow: 0 0 0 0 rgba(229, 72, 77, 0); }
+            50% { box-shadow: 0 0 2.5em 0.2em rgba(229, 72, 77, 0.45); }
+        }
+        .hero .top { display: flex; align-items: center; gap: 0.8em; flex-wrap: wrap; }
+        .hero .ago { margin-left: auto; color: var(--muted); font-size: 1.3em; font-variant-numeric: tabular-nums; }
+        .hero .msg {
+            font-size: 2.6em;
+            font-weight: 650;
+            line-height: 1.25;
+            margin: 0.6em 0 0.4em;
+            overflow-wrap: anywhere;
+            display: -webkit-box;
+            -webkit-line-clamp: 5;
+            -webkit-box-orient: vertical;
+            overflow: hidden;
+        }
+        .hero .meta { margin-top: auto; display: flex; gap: 2.5em; color: var(--muted); font-size: 1.2em; flex-wrap: wrap; }
+        .hero .meta b { display: block; color: var(--text); font-size: 1.35em; font-weight: 600; margin-top: 0.15em; }
+
+        .badge {
+            display: inline-flex; align-items: center;
+            padding: 0.3em 0.75em;
+            border-radius: 0.4em;
+            font-weight: 700;
+            font-size: 1.05em;
+            letter-spacing: 0.03em;
+            background: var(--panel-2);
+            color: var(--text);
+            white-space: nowrap;
+        }
+        .hero .badge { font-size: 1.35em; }
+        .badge.p1 { background: var(--prio1); }
+        .badge.p2 { background: var(--prio2); color: #1a1200; }
+        .badge.p3 { background: var(--prio3); }
+        .badge.nieuw { background: #fff; color: #000; animation: blink 1s steps(2, start) infinite; }
+        @keyframes blink { to { visibility: hidden; } }
+
+        .brandweer { border-left-color: var(--brandweer) !important; }
+        .ambulance { border-left-color: var(--ambulance) !important; }
+        .politie   { border-left-color: var(--politie) !important; }
+        .dienst.brandweer { color: var(--brandweer); }
+        .dienst.ambulance { color: var(--ambulance); }
+        .dienst.politie   { color: var(--politie); }
+
+        /* ---------- Statistieken ---------- */
+        .stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1.6vw; }
+        .stat {
+            background: var(--panel);
+            border: 0.12em solid var(--line);
+            border-radius: 0.8em;
+            padding: 1em 1.3em;
+        }
+        .stat .n { font-size: 3em; font-weight: 750; line-height: 1; font-variant-numeric: tabular-nums; }
+        .stat .t { color: var(--muted); margin-top: 0.4em; font-size: 1em; }
+
+        /* ---------- Lijst ---------- */
+        .list-wrap { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+        #lijst {
+            flex: 1; min-height: 0;
+            overflow: hidden;
+            display: flex; flex-direction: column; gap: 0.7em;
+            scroll-behavior: smooth;
+        }
+        .item {
+            display: grid;
+            grid-template-columns: 5.2em 1fr;
+            gap: 0 1.1em;
+            background: var(--panel);
+            border: 0.12em solid var(--line);
+            border-left: 0.5em solid var(--overig);
+            border-radius: 0.6em;
+            padding: 0.85em 1.1em;
+            flex-shrink: 0;
+        }
+        .item .when { font-variant-numeric: tabular-nums; }
+        .item .when .h { font-size: 1.6em; font-weight: 700; line-height: 1.1; }
+        .item .when .d { color: var(--muted); font-size: 0.95em; }
+        .item .body { min-width: 0; }
+        .item .row { display: flex; align-items: center; gap: 0.6em; margin-bottom: 0.3em; }
+        .item .row .dienst { font-weight: 600; font-size: 0.95em; text-transform: uppercase; letter-spacing: 0.06em; }
+        .item .row .badge { font-size: 0.85em; padding: 0.2em 0.55em; }
+        .item .txt {
+            font-size: 1.3em; line-height: 1.3;
+            overflow: hidden; text-overflow: ellipsis;
+            display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;
+        }
+
+        .empty {
+            color: var(--muted);
+            font-size: 1.6em;
+            text-align: center;
+            margin: auto;
+            padding: 2em;
+        }
+        .empty small { display: block; font-size: 0.6em; margin-top: 0.8em; }
+
+        /* Kleinere/staande schermen: onder elkaar */
+        @media (max-aspect-ratio: 1/1) {
+            body { font-size: clamp(14px, 2.2vw, 48px); overflow: auto; }
+            header { height: auto; padding: 1em 16px; flex-wrap: wrap; }
+            main { grid-template-columns: 1fr; height: auto; padding: 16px; }
+            .hero { min-height: 40vh; }
+            #lijst { overflow: visible; }
+        }
     </style>
 </head>
 <body>
     <header>
-        <h1>Actuele Alarmeringen</h1>
-        <div id="clock">00:00:00</div>
+        <div class="brand">
+            <div class="logo">112</div>
+            <div>
+                <h1>P2000 Alarmeringen</h1>
+                <div class="sub">Capcode <b id="capcode">-</b></div>
+            </div>
+        </div>
+        <div class="status">
+            <span class="dot" id="dot"></span>
+            <span id="statusTekst">Verbinden…</span>
+        </div>
+        <div class="clock">
+            <div class="time" id="tijd">00:00:00</div>
+            <div class="date" id="datum"></div>
+        </div>
     </header>
-    
-    <div id="container">
-        <div class="error">Meldingen ophalen...</div>
-    </div>
+
+    <main>
+        <section class="col">
+            <div class="label">Laatste melding</div>
+            <article class="hero" id="hero">
+                <div class="empty">Meldingen ophalen…</div>
+            </article>
+            <div class="stats">
+                <div class="stat"><div class="n" id="statVandaag">–</div><div class="t">Vandaag</div></div>
+                <div class="stat"><div class="n" id="stat24">–</div><div class="t">Afgelopen 24 uur</div></div>
+                <div class="stat"><div class="n" id="stat7">–</div><div class="t">Afgelopen 7 dagen</div></div>
+            </div>
+        </section>
+
+        <section class="col">
+            <div class="list-wrap">
+                <div class="label">Eerdere meldingen</div>
+                <div id="lijst"></div>
+            </div>
+        </section>
+    </main>
 
     <script>
-        // De geüpdatete, veilige HTTPS RSS feed
-        const feedUrl = 'https://alarmeringen.nl/feeds/user/e3826aac-12d9-4685-be9e-e30a469de97c.rss';
-        const container = document.getElementById('container');
-        
-        // Geavanceerde lijst met proxies (mix van JSON wrappers en RAW text)
+        /* ================= Instellingen =================
+         * Aanpasbaar via de URL, bv. index.html?capcode=0127850&feed=https://...
+         */
+        const params = new URLSearchParams(location.search);
+        const CAPCODE = params.get('capcode') || '0127850';
+        const FEED_URL = params.get('feed') ||
+            'https://alarmeringen.nl/feeds/user/e3826aac-12d9-4685-be9e-e30a469de97c.rss';
+        const VERVERS_MS = 60 * 1000;          // nieuwe meldingen ophalen
+        const NIEUW_MS = 15 * 60 * 1000;       // melding telt als "nieuw" (knipperend label)
+        const SCROLL_MS = 10 * 1000;           // lijst doorbladeren
+        const CACHE_KEY = 'p2000-cache-' + CAPCODE;
+
+        // Browsers mogen de feed niet rechtstreeks lezen (CORS), daarom via een proxy.
         const proxies = [
-            { url: `https://api.allorigins.win/get?url=${encodeURIComponent(feedUrl)}`, type: 'json' },
-            { url: `https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(feedUrl)}`, type: 'raw' },
-            { url: `https://corsproxy.io/?${encodeURIComponent(feedUrl)}`, type: 'raw' }
+            u => ({ url: 'https://api.allorigins.win/get?url=' + encodeURIComponent(u), type: 'json' }),
+            u => ({ url: 'https://api.codetabs.com/v1/proxy?quest=' + encodeURIComponent(u), type: 'raw' }),
+            u => ({ url: 'https://corsproxy.io/?url=' + encodeURIComponent(u), type: 'raw' }),
         ];
-        
-        setInterval(() => {
-            const now = new Date();
-            document.getElementById('clock').textContent = now.toLocaleTimeString('nl-NL');
-        }, 1000);
 
-        // Functie om de juiste kleur te bepalen
-        function getDienstClass(tekst) {
-            const lowerTekst = tekst.toLowerCase();
-            if (lowerTekst.includes('brandweer') || lowerTekst.includes('brw') || lowerTekst.includes('prio 1') || lowerTekst.includes('prio 2')) return 'brandweer';
-            if (lowerTekst.includes('ambulance') || lowerTekst.includes('ambu') || lowerTekst.includes('a1') || lowerTekst.includes('a2')) return 'ambulance';
-            if (lowerTekst.includes('politie') || lowerTekst.includes('trauma') || lowerTekst.includes('lifeliner')) return 'politie';
-            return '';
+        const $ = id => document.getElementById(id);
+        $('capcode').textContent = CAPCODE;
+
+        let meldingen = [];
+        let laatsteSucces = null;
+
+        /* ================= Klok ================= */
+        function tik() {
+            const nu = new Date();
+            $('tijd').textContent = nu.toLocaleTimeString('nl-NL');
+            const d = nu.toLocaleDateString('nl-NL', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+            $('datum').textContent = d.charAt(0).toUpperCase() + d.slice(1);
         }
+        tik();
+        setInterval(tik, 1000);
 
-        async function fetchWithFallback(proxyList) {
-            for (let i = 0; i < proxyList.length; i++) {
+        /* ================= Ophalen ================= */
+        async function haalFeed() {
+            const bust = (FEED_URL.includes('?') ? '&' : '?') + '_t=' + Date.now();
+            for (const maak of proxies) {
+                const p = maak(FEED_URL + bust);
                 try {
-                    const proxy = proxyList[i];
-                    // Append timestamp to bust browser cache
-                    const response = await fetch(proxy.url + '&_t=' + new Date().getTime(), { cache: 'no-store' });
-                    
-                    if (response.ok) {
-                        if (proxy.type === 'json') {
-                            const data = await response.json();
-                            if (data.contents) return data.contents;
-                        } else {
-                            return await response.text();
-                        }
-                    }
-                } catch (error) {
-                    console.warn(`Proxy ${i + 1} mislukt, probeer volgende.`);
+                    const ctrl = new AbortController();
+                    const timer = setTimeout(() => ctrl.abort(), 15000);
+                    const res = await fetch(p.url, { cache: 'no-store', signal: ctrl.signal });
+                    clearTimeout(timer);
+                    if (!res.ok) continue;
+                    const tekst = p.type === 'json' ? (await res.json()).contents : await res.text();
+                    if (tekst && tekst.includes('<item')) return tekst;
+                } catch (e) {
+                    console.warn('Proxy mislukt:', p.url, e);
                 }
             }
-            throw new Error('Alle proxy servers zijn onbereikbaar.');
+            throw new Error('Feed niet bereikbaar via de proxies');
         }
 
-        async function laadMeldingen() {
+        function stripHtml(html) {
+            const doc = new DOMParser().parseFromString(html || '', 'text/html');
+            return (doc.body.textContent || '').replace(/\s+/g, ' ').trim();
+        }
+
+        function parseFeed(xml) {
+            const doc = new DOMParser().parseFromString(xml, 'text/xml');
+            if (doc.querySelector('parsererror')) throw new Error('Feed kon niet worden gelezen');
+
+            return [...doc.querySelectorAll('item')].map(item => {
+                const get = sel => item.querySelector(sel)?.textContent || '';
+                const titel = stripHtml(get('title'));
+                const beschrijving = stripHtml(get('description'));
+                const datum = new Date(get('pubDate'));
+                return {
+                    id: get('guid') || get('link') || titel + get('pubDate'),
+                    titel,
+                    // Tekst voor op het scherm: zonder de 7-cijferige capcodes
+                    tekst: titel.replace(/\b\d{7}\b/g, '').replace(/\s+/g, ' ').trim() || titel,
+                    beschrijving,
+                    tijd: isNaN(datum) ? Date.now() : datum.getTime(),
+                };
+            }).filter(m => {
+                // Toon meldingen voor onze capcode. Staat er helemaal geen capcode in het
+                // item, dan is de (persoonlijke) feed al gefilterd en tonen we het gewoon.
+                const alles = m.titel + ' ' + m.beschrijving;
+                return alles.includes(CAPCODE) || !/\b\d{7}\b/.test(alles);
+            }).sort((a, b) => b.tijd - a.tijd);
+        }
+
+        /* ================= Interpretatie ================= */
+        function prio(tekst) {
+            const t = ' ' + tekst.toUpperCase() + ' ';
+            if (/\b(P ?1|PRIO ?1|A1|A 1)\b/.test(t)) return { k: 'p1', l: 'PRIO 1' };
+            if (/\b(P ?2|PRIO ?2|A2|A 2)\b/.test(t)) return { k: 'p2', l: 'PRIO 2' };
+            if (/\b(P ?3|PRIO ?3|B1|B2|B 1|B 2)\b/.test(t)) return { k: 'p3', l: 'PRIO 3' };
+            return null;
+        }
+
+        function dienst(tekst) {
+            const t = tekst.toLowerCase();
+            if (/brandweer|\bbrw\b|brand|\bbr\b|\bois\b|\bbos\b|\bwoningbrand\b|\bhv\b|\bdv\b|\bts\b/.test(t)) return { k: 'brandweer', l: 'Brandweer' };
+            if (/ambulance|\bambu\b|\bmmt\b|lifeliner|\ba[12]\b|\bb[12]\b/.test(t)) return { k: 'ambulance', l: 'Ambulance' };
+            if (/politie|\bpol\b/.test(t)) return { k: 'politie', l: 'Politie' };
+            return { k: '', l: 'Melding' };
+        }
+
+        // Laatste stuk van de tekst met een postcode/plaatsnaam, als die er in staat
+        function locatie(tekst) {
+            const pc = tekst.match(/\b\d{4}\s?[A-Z]{2}\b.*$/);
+            return pc ? pc[0].trim() : '';
+        }
+
+        function geleden(ms) {
+            const s = Math.max(0, Math.round((Date.now() - ms) / 1000));
+            if (s < 60) return 'zojuist';
+            const m = Math.floor(s / 60);
+            if (m < 60) return m + ' min geleden';
+            const u = Math.floor(m / 60);
+            if (u < 24) return u + ' uur ' + (m % 60) + ' min geleden';
+            const d = Math.floor(u / 24);
+            return d === 1 ? 'gisteren' : d + ' dagen geleden';
+        }
+
+        const fmtTijd = ms => new Date(ms).toLocaleTimeString('nl-NL', { hour: '2-digit', minute: '2-digit' });
+        function fmtDag(ms) {
+            const d = new Date(ms), nu = new Date();
+            const gister = new Date(nu); gister.setDate(nu.getDate() - 1);
+            if (d.toDateString() === nu.toDateString()) return 'Vandaag';
+            if (d.toDateString() === gister.toDateString()) return 'Gisteren';
+            return d.toLocaleDateString('nl-NL', { day: 'numeric', month: 'short' });
+        }
+
+        /* ================= Weergave ================= */
+        function el(tag, cls, tekst) {
+            const e = document.createElement(tag);
+            if (cls) e.className = cls;
+            if (tekst != null) e.textContent = tekst;
+            return e;
+        }
+
+        function badges(m, parent) {
+            const p = prio(m.titel);
+            if (p) parent.appendChild(el('span', 'badge ' + p.k, p.l));
+            if (Date.now() - m.tijd < NIEUW_MS) parent.appendChild(el('span', 'badge nieuw', 'NIEUW'));
+        }
+
+        function renderHero() {
+            const hero = $('hero');
+            hero.replaceChildren();
+            hero.className = 'hero';
+
+            if (!meldingen.length) {
+                const leeg = el('div', 'empty', 'Geen recente meldingen voor capcode ' + CAPCODE);
+                hero.appendChild(leeg);
+                return;
+            }
+
+            const m = meldingen[0];
+            const ds = dienst(m.titel + ' ' + m.beschrijving);
+            if (ds.k) hero.classList.add(ds.k);
+            if (Date.now() - m.tijd < NIEUW_MS) hero.classList.add('fresh');
+
+            const top = el('div', 'top');
+            top.appendChild(el('span', 'badge dienst ' + ds.k, ds.l.toUpperCase()));
+            badges(m, top);
+            top.appendChild(el('span', 'ago', geleden(m.tijd)));
+            hero.appendChild(top);
+
+            hero.appendChild(el('div', 'msg', m.tekst || m.titel));
+
+            const meta = el('div', 'meta');
+            const blok = (label, waarde) => {
+                const d = el('div', null, label);
+                d.appendChild(el('b', null, waarde));
+                meta.appendChild(d);
+            };
+            blok('Tijd', fmtTijd(m.tijd));
+            blok('Datum', fmtDag(m.tijd));
+            const loc = locatie(m.tekst || m.titel);
+            if (loc) blok('Locatie', loc);
+            hero.appendChild(meta);
+        }
+
+        function renderLijst() {
+            const lijst = $('lijst');
+            lijst.replaceChildren();
+            const rest = meldingen.slice(1, 40);
+
+            if (!rest.length) {
+                lijst.appendChild(el('div', 'empty', 'Geen eerdere meldingen'));
+                return;
+            }
+
+            for (const m of rest) {
+                const ds = dienst(m.titel + ' ' + m.beschrijving);
+                const item = el('div', 'item ' + ds.k);
+
+                const when = el('div', 'when');
+                when.appendChild(el('div', 'h', fmtTijd(m.tijd)));
+                when.appendChild(el('div', 'd', fmtDag(m.tijd)));
+                item.appendChild(when);
+
+                const body = el('div', 'body');
+                const row = el('div', 'row');
+                row.appendChild(el('span', 'dienst ' + ds.k, ds.l));
+                badges(m, row);
+                body.appendChild(row);
+                body.appendChild(el('div', 'txt', m.tekst || m.titel));
+                item.appendChild(body);
+
+                lijst.appendChild(item);
+            }
+        }
+
+        function renderStats() {
+            const nu = Date.now();
+            const middernacht = new Date(); middernacht.setHours(0, 0, 0, 0);
+            $('statVandaag').textContent = meldingen.filter(m => m.tijd >= middernacht.getTime()).length;
+            $('stat24').textContent = meldingen.filter(m => nu - m.tijd < 864e5).length;
+            $('stat7').textContent = meldingen.filter(m => nu - m.tijd < 7 * 864e5).length;
+        }
+
+        function renderStatus(fout) {
+            const dot = $('dot');
+            if (!fout) {
+                dot.className = 'dot ok';
+                $('statusTekst').textContent = 'Live · bijgewerkt ' + fmtTijd(laatsteSucces);
+            } else if (laatsteSucces) {
+                dot.className = 'dot warn';
+                $('statusTekst').textContent = 'Geen verbinding · laatst bijgewerkt ' + fmtTijd(laatsteSucces);
+            } else {
+                dot.className = 'dot err';
+                $('statusTekst').textContent = 'Geen verbinding met de feed';
+            }
+        }
+
+        function renderAlles() {
+            renderHero();
+            renderLijst();
+            renderStats();
+        }
+
+        /* ================= Cache (zodat de tv na een herstart direct iets toont) ================= */
+        function laadCache() {
             try {
-                const rawXmlText = await fetchWithFallback(proxies);
-                
-                const parser = new DOMParser();
-                const xmlDoc = parser.parseFromString(rawXmlText, "text/xml");
-                
-                const parseError = xmlDoc.querySelector("parsererror");
-                if (parseError) throw new Error('Kon de RSS feed niet correct inlezen.');
-
-                const items = xmlDoc.querySelectorAll("item");
-                if (items.length === 0) throw new Error('Geen meldingen gevonden in de feed.');
-
-                container.innerHTML = '';
-                
-                // DE GEWENSTE CAPCODE:
-                const doelCapcode = "0127850";
-                let capcodeGevonden = false;
-
-                items.forEach(item => {
-                    const title = item.querySelector("title")?.textContent || "";
-                    const description = item.querySelector("description")?.textContent || "";
-                    
-                    // Filter: check of de capcode in de titel of beschrijving staat
-                    if (title.includes(doelCapcode) || description.includes(doelCapcode)) {
-                        capcodeGevonden = true;
-                        
-                        const el = document.createElement('div');
-                        const pubDateStr = item.querySelector("pubDate")?.textContent;
-                        
-                        const datum = pubDateStr ? new Date(pubDateStr) : new Date();
-                        const tijdString = datum.toLocaleTimeString('nl-NL', { hour: '2-digit', minute: '2-digit' }) + ' - ' + datum.toLocaleDateString('nl-NL');
-                        
-                        const dienstClass = getDienstClass(title);
-                        el.className = `melding ${dienstClass}`;
-                        
-                        el.innerHTML = `
-                            <div class="tijd">${tijdString}</div>
-                            <div class="tekst">${title}</div>
-                        `;
-                        container.appendChild(el);
-                    }
-                });
-
-                // Als de loop klaar is en er is geen enkele melding voor deze capcode gevonden:
-                if (!capcodeGevonden) {
-                    container.innerHTML = `<div class="error" style="color: #aaa;">Momenteel geen actuele alarmeringen voor capcode ${doelCapcode}.</div>`;
+                const c = JSON.parse(localStorage.getItem(CACHE_KEY) || 'null');
+                if (c && Array.isArray(c.meldingen)) {
+                    meldingen = c.meldingen;
+                    laatsteSucces = c.tijd;
                 }
+            } catch (e) { /* geen opslag beschikbaar */ }
+        }
+        function bewaarCache() {
+            try {
+                localStorage.setItem(CACHE_KEY, JSON.stringify({ tijd: laatsteSucces, meldingen: meldingen.slice(0, 100) }));
+            } catch (e) { /* geen opslag beschikbaar */ }
+        }
 
-            } catch (error) {
-                console.error('Fout:', error);
-                container.innerHTML = '<div class="error">⚠️ Kan meldingen niet laden. <br><span style="font-size: 1rem; color: #aaa;">(' + error.message + ')</span></div>';
+        /* ================= Hoofdlus ================= */
+        async function ververs() {
+            try {
+                const nieuw = parseFeed(await haalFeed());
+                // Samenvoegen met wat we al hadden, zodat de historie niet verdwijnt als de feed kort is
+                const bekend = new Map(meldingen.map(m => [m.id, m]));
+                nieuw.forEach(m => bekend.set(m.id, m));
+                meldingen = [...bekend.values()]
+                    .filter(m => Date.now() - m.tijd < 30 * 864e5)
+                    .sort((a, b) => b.tijd - a.tijd);
+                laatsteSucces = Date.now();
+                bewaarCache();
+                renderAlles();
+                renderStatus(false);
+            } catch (e) {
+                console.error(e);
+                if (!meldingen.length) {
+                    const hero = $('hero');
+                    hero.className = 'hero';
+                    hero.replaceChildren(el('div', 'empty', '⚠️ Kan meldingen niet laden'));
+                    hero.firstChild.appendChild(el('small', null, e.message + ' — nieuwe poging over ' + VERVERS_MS / 1000 + ' s'));
+                }
+                renderStatus(true);
             }
         }
 
-        let scrollPos = 0;
+        // Lijst langzaam doorbladeren als niet alles op het scherm past
         setInterval(() => {
-            const maxScroll = container.scrollHeight - container.clientHeight;
-            if (maxScroll > 0) {
-                scrollPos += container.clientHeight - 20; 
-                if (scrollPos > maxScroll) scrollPos = 0; 
-                container.scrollTo({ top: scrollPos, behavior: 'smooth' });
-            }
-        }, 12000); 
+            const lijst = $('lijst');
+            const max = lijst.scrollHeight - lijst.clientHeight;
+            if (max <= 0) return;
+            const volgende = lijst.scrollTop + lijst.clientHeight * 0.8;
+            lijst.scrollTop = volgende >= max + 5 ? 0 : Math.min(volgende, max);
+        }, SCROLL_MS);
 
-        // Starten
-        laadMeldingen();
-        setInterval(laadMeldingen, 120000); 
+        // "x min geleden" en NIEUW-labels actueel houden tussen verversingen door
+        setInterval(() => { if (meldingen.length) { renderHero(); renderStats(); } }, 30 * 1000);
+
+        laadCache();
+        if (meldingen.length) { renderAlles(); renderStatus(true); }
+        ververs();
+        setInterval(ververs, VERVERS_MS);
     </script>
 </body>
 </html>
