@@ -90,19 +90,19 @@
             for (let i = 0; i < proxyList.length; i++) {
                 try {
                     const proxy = proxyList[i];
-                    const response = await fetch(proxy.url, { cache: 'no-store' });
+                    // Append timestamp to bust browser cache
+                    const response = await fetch(proxy.url + '&_t=' + new Date().getTime(), { cache: 'no-store' });
                     
                     if (response.ok) {
                         if (proxy.type === 'json') {
                             const data = await response.json();
-                            // AllOrigins plaatst de broncode in de 'contents' variabele
                             if (data.contents) return data.contents;
                         } else {
                             return await response.text();
                         }
                     }
                 } catch (error) {
-                    console.warn(`Proxy ${i + 1} (${proxy.url}) mislukt, probeer de volgende...`);
+                    console.warn(`Proxy ${i + 1} mislukt, probeer volgende.`);
                 }
             }
             throw new Error('Alle proxy servers zijn onbereikbaar.');
@@ -110,43 +110,56 @@
 
         async function laadMeldingen() {
             try {
-                // Probeer de proxies op volgorde
                 const rawXmlText = await fetchWithFallback(proxies);
                 
-                // Parse de ruwe XML direct in de browser
                 const parser = new DOMParser();
                 const xmlDoc = parser.parseFromString(rawXmlText, "text/xml");
                 
-                // Controleer op parse-fouten
                 const parseError = xmlDoc.querySelector("parsererror");
-                if (parseError) throw new Error('Kon de RSS feed niet correct inlezen (XML Parse Error).');
+                if (parseError) throw new Error('Kon de RSS feed niet correct inlezen.');
 
                 const items = xmlDoc.querySelectorAll("item");
                 if (items.length === 0) throw new Error('Geen meldingen gevonden in de feed.');
 
                 container.innerHTML = '';
                 
+                // DE GEWENSTE CAPCODE:
+                const doelCapcode = "0127850";
+                let capcodeGevonden = false;
+
                 items.forEach(item => {
-                    const el = document.createElement('div');
+                    const title = item.querySelector("title")?.textContent || "";
+                    const description = item.querySelector("description")?.textContent || "";
                     
-                    const title = item.querySelector("title")?.textContent || "Geen details";
-                    const pubDateStr = item.querySelector("pubDate")?.textContent;
-                    
-                    const datum = pubDateStr ? new Date(pubDateStr) : new Date();
-                    const tijdString = datum.toLocaleTimeString('nl-NL', { hour: '2-digit', minute: '2-digit' }) + ' - ' + datum.toLocaleDateString('nl-NL');
-                    
-                    const dienstClass = getDienstClass(title);
-                    el.className = `melding ${dienstClass}`;
-                    
-                    el.innerHTML = `
-                        <div class="tijd">${tijdString}</div>
-                        <div class="tekst">${title}</div>
-                    `;
-                    container.appendChild(el);
+                    // Filter: check of de capcode in de titel of beschrijving staat
+                    if (title.includes(doelCapcode) || description.includes(doelCapcode)) {
+                        capcodeGevonden = true;
+                        
+                        const el = document.createElement('div');
+                        const pubDateStr = item.querySelector("pubDate")?.textContent;
+                        
+                        const datum = pubDateStr ? new Date(pubDateStr) : new Date();
+                        const tijdString = datum.toLocaleTimeString('nl-NL', { hour: '2-digit', minute: '2-digit' }) + ' - ' + datum.toLocaleDateString('nl-NL');
+                        
+                        const dienstClass = getDienstClass(title);
+                        el.className = `melding ${dienstClass}`;
+                        
+                        el.innerHTML = `
+                            <div class="tijd">${tijdString}</div>
+                            <div class="tekst">${title}</div>
+                        `;
+                        container.appendChild(el);
+                    }
                 });
+
+                // Als de loop klaar is en er is geen enkele melding voor deze capcode gevonden:
+                if (!capcodeGevonden) {
+                    container.innerHTML = `<div class="error" style="color: #aaa;">Momenteel geen actuele alarmeringen voor capcode ${doelCapcode}.</div>`;
+                }
+
             } catch (error) {
-                console.error('Fout bij het ophalen van meldingen:', error);
-                container.innerHTML = '<div class="error">⚠️ Kan meldingen niet laden. <br><span style="font-size: 1rem; color: #aaa;">Probeer de pagina te verversen. <br>(' + error.message + ')</span></div>';
+                console.error('Fout:', error);
+                container.innerHTML = '<div class="error">⚠️ Kan meldingen niet laden. <br><span style="font-size: 1rem; color: #aaa;">(' + error.message + ')</span></div>';
             }
         }
 
