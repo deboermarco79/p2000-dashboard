@@ -40,11 +40,12 @@
             padding: 1.1em 2.2vw;
             border-bottom: 1px solid var(--line);
         }
-        .status { display: flex; align-items: center; gap: 0.7em; color: var(--muted); min-width: 0; }
-        #statusTekst { white-space: nowrap; }
+        .status { display: flex; align-items: center; gap: 0.7em; color: var(--muted); min-width: 0; max-width: 62vw; }
+        .status-tekst { display: block; min-width: 0; }
+        #statusTekst { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
         #statusDetail {
             display: block; font-size: 0.75em; margin-top: 0.25em; color: var(--dim);
-            white-space: normal; max-width: 60vw;
+            white-space: normal; max-width: 100%;
         }
         .dot { flex: none; width: 0.7em; height: 0.7em; border-radius: 50%; background: var(--muted); }
         .dot.ok { background: var(--prio3); box-shadow: 0 0 0.6em var(--prio3); }
@@ -167,7 +168,7 @@
     <header>
         <div class="status">
             <span class="dot" id="dot"></span>
-            <span><span id="statusTekst">Verbinden…</span><span id="statusDetail"></span></span>
+            <span class="status-tekst"><span id="statusTekst">Verbinden…</span><span id="statusDetail"></span></span>
         </div>
         <div class="clock">
             <span class="date" id="datum"></span>
@@ -205,12 +206,17 @@
         const FEEDS = [
             { naam: 'alarmeringen.nl', url: 'https://alarmeringen.nl/feeds/user/e3826aac-12d9-4685-be9e-e30a469de97c.rss' },
             { naam: 'alarmeringdroid', url: 'https://www.alarmeringdroid.nl/rss/7738690e' },
+            { naam: 'alarmeringen.nl-2', url: 'https://alarmeringen.nl/feeds/user/edc2a4dd-b5ed-430c-85a7-7caf1982545f.rss' },
+            { naam: 'voorlichter Zaanstreek-Waterland', url: 'https://www.alarmeringdroid.nl/rss/5ef7e920' },
+            { naam: 'voorlichter Kennemerland', url: 'https://www.alarmeringdroid.nl/rss/132e8974' },
+            { naam: 'voorlichter Noord-Holland-Noord', url: 'https://www.alarmeringdroid.nl/rss/6fa78810' },
+            { naam: 'alarmeringdroid politie (2)', url: 'https://www.alarmeringdroid.nl/rss/a067947f' },
         ];
         const VERVERS_MS = 60 * 1000;          // nieuwe meldingen ophalen
         const OPNIEUW_MS = 20 * 1000;          // na een mislukte poging sneller opnieuw proberen
         const HERLAAD_MS = 60 * 1000;          // hele pagina opnieuw laden (Chromecast/tv: blijft zo actueel)
         const NIEUW_MS = 15 * 60 * 1000;       // melding telt als "nieuw" (knipperend label)
-        const CACHE_KEY = 'p2000-persalarm-v7';
+        const CACHE_KEY = 'p2000-persalarm-v9';
         // Diagnose: open de pagina met ?debug om per melding te zien of en waarom hij (niet) getoond wordt
         const DEBUG = /[?&]debug\b/.test(location.search);
         const TZ = 'Europe/Amsterdam';          // tijden altijd in Nederlandse tijd, ook als de Chromecast op UTC staat
@@ -584,8 +590,8 @@
             $('statusDetail').textContent = '';
             if (!fout) {
                 dot.className = 'dot ok';
-                $('statusTekst').textContent = 'Live · bijgewerkt ' + fmtTijd(laatsteSucces) + (route ? ' · via ' + route : '');
-                if (detail) $('statusTekst').textContent += ' · ' + detail;   // bv. één van de feeds faalt
+                $('statusTekst').textContent = 'Live · bijgewerkt ' + fmtTijd(laatsteSucces) + (route ? ' · ' + route : '');
+                if (detail) $('statusDetail').textContent = detail;   // volle routelijst en/of welke feed(s) falen
                 return;
             }
             dot.className = laatsteSucces ? 'dot warn' : 'dot err';
@@ -682,9 +688,14 @@
                 bewaarCache();
                 renderAlles();
                 renderDebug();
+                // Bij weinig feeds: elke naam + route in de statusregel zelf. Bij veel feeds is dat te
+                // lang voor op een tv, dus dan alleen het aantal, met de volle lijst in de detailregel.
+                const perFeed = gelukt.map(g => g.feed.naam + ' (' + g.route + ')').join(' + ');
+                const routeSamenvatting = gelukt.length <= 2 ? 'via ' + perFeed : gelukt.length + ' van de ' + FEEDS.length + ' feeds bereikbaar';
                 const opmerkingen = [];
+                if (gelukt.length > 2) opmerkingen.push(perFeed);
                 if (mislukt.length) opmerkingen.push(FEEDS.filter(f => !gelukt.some(g => g.feed === f)).map(f => f.naam).join(', ') + ' niet bereikbaar');
-                renderStatus(false, gelukt.map(g => g.feed.naam + ' (' + g.route + ')').join(' + '), opmerkingen.join(' · '));
+                renderStatus(false, routeSamenvatting, opmerkingen.join(' · '));
             } catch (e) {
                 console.error(e);
                 if (!meldingen.length) {
