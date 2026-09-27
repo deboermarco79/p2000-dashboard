@@ -198,7 +198,7 @@
             margin: auto;
             padding: 2em;
         }
-        .empty small { display: block; font-size: 0.6em; margin-top: 0.8em; }
+        .empty small { display: block; font-size: 0.6em; margin-top: 0.8em; white-space: pre-line; line-height: 1.5; }
 
         /* Kleinere/staande schermen: onder elkaar */
         @media (max-aspect-ratio: 1/1) {
@@ -263,12 +263,24 @@
         const SCROLL_MS = 10 * 1000;           // lijst doorbladeren
         const CACHE_KEY = 'p2000-cache-' + CAPCODE + '-' + FEED_URL;
 
-        // Browsers mogen de feed niet rechtstreeks lezen (CORS), daarom via een proxy.
-        const proxies = [
-            u => ({ url: 'https://api.allorigins.win/get?url=' + encodeURIComponent(u), type: 'json' }),
-            u => ({ url: 'https://api.codetabs.com/v1/proxy?quest=' + encodeURIComponent(u), type: 'raw' }),
-            u => ({ url: 'https://corsproxy.io/?url=' + encodeURIComponent(u), type: 'raw' }),
-        ];
+        /* Een browser mag een feed van een andere site alleen lezen als die site dat toestaat (CORS).
+         * Daarom proberen we een reeks routes; de route die werkt wordt onthouden en voortaan eerst gebruikt.
+         * 1. Eigen server (server.py) — alleen als deze pagina via die server geopend is. Meest betrouwbaar.
+         * 2. Rechtstreeks — werkt als de feed-site CORS toestaat.
+         * 3. Publieke proxies en RSS-naar-JSON diensten.
+         */
+        const enc = encodeURIComponent;
+        const routes = [
+            { naam: 'eigen server', url: () => 'feed', alleenViaServer: true },
+            { naam: 'rechtstreeks', url: u => u },
+            { naam: 'allorigins', url: u => 'https://api.allorigins.win/raw?url=' + enc(u) },
+            { naam: 'allorigins-json', url: u => 'https://api.allorigins.win/get?url=' + enc(u), lees: d => d.contents },
+            { naam: 'corsproxy.io', url: u => 'https://corsproxy.io/?url=' + enc(u) },
+            { naam: 'codetabs', url: u => 'https://api.codetabs.com/v1/proxy?quest=' + enc(u) },
+            { naam: 'cors.lol', url: u => 'https://api.cors.lol/?url=' + enc(u) },
+            { naam: 'whateverorigin', url: u => 'https://whateverorigin.org/get?url=' + enc(u), lees: d => d.contents },
+            { naam: 'rss2json', url: u => 'https://api.rss2json.com/v1/api.json?rss_url=' + enc(u), rss2json: true },
+        ].filter(r => !r.alleenViaServer || (/^https?:$/.test(location.protocol) && !params.get('feed')));
 
         const $ = id => document.getElementById(id);
         $('capcode').textContent = CAPCODE;
@@ -287,23 +299,56 @@
         setInterval(tik, 1000);
 
         /* ================= Ophalen ================= */
+        const ROUTE_KEY = 'p2000-route-' + FEED_URL;
+        let voorkeur = (() => { try { return localStorage.getItem(ROUTE_KEY); } catch (e) { return null; } })();
+
+        async function probeer(route) {
+            const ctrl = new AbortController();
+            const timer = setTimeout(() => ctrl.abort(), 8000);
+            try {
+                let url = route.url(FEED_URL);
+                // Cache-buster alleen op proxy-adressen, niet op de feed zelf
+                if (url !== FEED_URL) url += (url.includes('?') ? '&' : '?') + '_t=' + Date.now();
+                const res = await fetch(url, { cache: 'no-store', signal: ctrl.signal });
+                if (!res.ok) throw new Error('HTTP ' + res.status);
+
+                if (route.rss2json) {
+                    const d = await res.json();
+                    if (d.status !== 'ok' || !Array.isArray(d.items)) throw new Error(d.message || 'geen feed');
+                    return d.items.map(i => ({
+                        titel: i.title, beschrijving: i.description || i.content,
+                        // rss2json geeft "2026-09-27 04:41:00" in UTC
+                        ruweDatum: /^\d{4}-\d\d-\d\d \d/.test(i.pubDate || '') ? i.pubDate.replace(' ', 'T') + 'Z' : i.pubDate,
+                        id: i.guid || i.link,
+                    }));
+                }
+                const tekst = route.lees ? route.lees(await res.json()) : await res.text();
+                if (!tekst || !/<(rss|feed|rdf:RDF|channel)[\s>]/i.test(tekst)) throw new Error('antwoord is geen feed');
+                return leesXml(tekst);
+            } catch (e) {
+                throw new Error(e.name === 'AbortError' ? 'time-out' : (e.message === 'Failed to fetch' ? 'geblokkeerd' : e.message));
+            } finally {
+                clearTimeout(timer);
+            }
+        }
+
         async function haalFeed() {
-            const bust = (FEED_URL.includes('?') ? '&' : '?') + '_t=' + Date.now();
-            for (const maak of proxies) {
-                const p = maak(FEED_URL + bust);
+            const volgorde = [...routes].sort((a, b) => (b.naam === voorkeur) - (a.naam === voorkeur));
+            const fouten = [];
+            for (const route of volgorde) {
                 try {
-                    const ctrl = new AbortController();
-                    const timer = setTimeout(() => ctrl.abort(), 15000);
-                    const res = await fetch(p.url, { cache: 'no-store', signal: ctrl.signal });
-                    clearTimeout(timer);
-                    if (!res.ok) continue;
-                    const tekst = p.type === 'json' ? (await res.json()).contents : await res.text();
-                    if (tekst && /<(item|entry)[\s>]/.test(tekst)) return tekst;
+                    const items = await probeer(route);
+                    if (route.naam !== voorkeur) {
+                        voorkeur = route.naam;
+                        try { localStorage.setItem(ROUTE_KEY, voorkeur); } catch (e) { /* geen opslag */ }
+                    }
+                    return { items, route: route.naam };
                 } catch (e) {
-                    console.warn('Proxy mislukt:', p.url, e);
+                    console.warn('Route mislukt:', route.naam, e.message);
+                    fouten.push(route.naam + ': ' + e.message);
                 }
             }
-            throw new Error('Feed niet bereikbaar via de proxies');
+            throw new Error('Feed niet bereikbaar. ' + fouten.join(' · '));
         }
 
         function stripHtml(html) {
@@ -326,13 +371,14 @@
             return null;
         }
 
-        function parseFeed(xml) {
+        // XML (RSS of Atom) omzetten naar ruwe items
+        function leesXml(xml) {
             const doc = new DOMParser().parseFromString(xml, 'text/xml');
-            if (doc.querySelector('parsererror')) throw new Error('Feed kon niet worden gelezen');
+            if (doc.querySelector('parsererror')) throw new Error('feed kon niet worden gelezen');
 
             // RSS gebruikt <item>, Atom gebruikt <entry>
             const items = [...doc.getElementsByTagName('item'), ...doc.getElementsByTagName('entry')];
-            const alle = items.map(item => {
+            return items.map(item => {
                 const get = naam => {
                     for (const n of naam.split('|')) {
                         const e = item.getElementsByTagName(n)[0];
@@ -340,13 +386,24 @@
                     }
                     return '';
                 };
-                const beschrijving = stripHtml(get('description|summary|content|content:encoded'));
-                const titel = stripHtml(get('title')) || beschrijving;
-                const ruweDatum = get('pubDate|dc:date|published|updated|date');
-                const tijd = leesDatum(ruweDatum, titel, beschrijving);
                 const link = get('link') || item.getElementsByTagName('link')[0]?.getAttribute('href') || '';
                 return {
-                    id: get('guid|id') || link || titel + ruweDatum,
+                    titel: get('title'),
+                    beschrijving: get('description|summary|content|content:encoded'),
+                    ruweDatum: get('pubDate|dc:date|published|updated|date'),
+                    id: get('guid|id') || link,
+                };
+            });
+        }
+
+        // Ruwe items omzetten naar meldingen voor het scherm
+        function verwerk(ruw) {
+            const alle = ruw.map(r => {
+                const beschrijving = stripHtml(r.beschrijving);
+                const titel = stripHtml(r.titel) || beschrijving;
+                const tijd = leesDatum(r.ruweDatum, titel, beschrijving);
+                return {
+                    id: r.id || titel + (r.ruweDatum || ''),
                     titel,
                     // Tekst voor op het scherm: zonder de 7-cijferige capcodes
                     tekst: titel.replace(/\b\d{7}\b/g, '').replace(/\s+/g, ' ').trim() || titel,
@@ -501,11 +558,11 @@
             $('stat7').textContent = meldingen.filter(m => nu - m.tijd < 7 * 864e5).length;
         }
 
-        function renderStatus(fout) {
+        function renderStatus(fout, route) {
             const dot = $('dot');
             if (!fout) {
                 dot.className = 'dot ok';
-                $('statusTekst').textContent = 'Live · bijgewerkt ' + fmtTijd(laatsteSucces);
+                $('statusTekst').textContent = 'Live · bijgewerkt ' + fmtTijd(laatsteSucces) + (route ? ' · via ' + route : '');
             } else if (laatsteSucces) {
                 dot.className = 'dot warn';
                 $('statusTekst').textContent = 'Geen verbinding · laatst bijgewerkt ' + fmtTijd(laatsteSucces);
@@ -538,9 +595,13 @@
         }
 
         /* ================= Hoofdlus ================= */
+        let bezig = false;
         async function ververs() {
+            if (bezig) return;           // vorige poging loopt nog
+            bezig = true;
             try {
-                const nieuw = parseFeed(await haalFeed());
+                const { items, route } = await haalFeed();
+                const nieuw = verwerk(items);
                 // Samenvoegen met wat we al hadden, zodat de historie niet verdwijnt als de feed kort is
                 const bekend = new Map(meldingen.map(m => [m.id, m]));
                 nieuw.forEach(m => {
@@ -554,16 +615,19 @@
                 laatsteSucces = Date.now();
                 bewaarCache();
                 renderAlles();
-                renderStatus(false);
+                renderStatus(false, route);
             } catch (e) {
                 console.error(e);
                 if (!meldingen.length) {
                     const hero = $('hero');
                     hero.className = 'hero';
                     hero.replaceChildren(el('div', 'empty', '⚠️ Kan meldingen niet laden'));
-                    hero.firstChild.appendChild(el('small', null, e.message + ' — nieuwe poging over ' + VERVERS_MS / 1000 + ' s'));
+                    hero.firstChild.appendChild(el('small', null,
+                        e.message.replace(/ · /g, '\n') + '\n\nNieuwe poging over ' + VERVERS_MS / 1000 + ' s'));
                 }
                 renderStatus(true);
+            } finally {
+                bezig = false;
             }
         }
 
