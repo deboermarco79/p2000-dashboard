@@ -309,7 +309,6 @@
         // is 24 verzoeken/minuut, ruim binnen die marge, en zes keer zo snel als de rest van de minuut.
         const SNEL_MS = 10 * 1000;
         const OPNIEUW_MS = 20 * 1000;          // na een mislukte poging sneller opnieuw proberen
-        const HERLAAD_MS = 60 * 1000;          // hele pagina opnieuw laden (Chromecast/tv: blijft zo actueel)
         const NIEUW_MS = 5 * 60 * 1000;        // melding telt als "nieuw" (knipperend label)
         const CACHE_KEY = 'p2000-persalarm-v13';
         // Diagnose: open de pagina met ?debug om per melding te zien of en waarom hij (niet) getoond wordt
@@ -940,25 +939,6 @@
 
         // "x min geleden" en NIEUW-labels actueel houden tussen verversingen door
         setInterval(() => { if (meldingen.length) renderHero(); }, 30 * 1000);
-
-        /* Pagina elke minuut volledig herladen, zodat de tv altijd de nieuwste versie draait.
-         * Alleen als de pagina zelf bereikbaar is (anders zou de Chromecast op een foutpagina blijven
-         * hangen) en niet midden in het ophalen van de feeds. Meldingen blijven via de cache staan.
-         */
-        async function herlaad() {
-            if (bezig) return setTimeout(herlaad, 5000);
-            if (location.protocol !== 'file:') {
-                try {
-                    const res = await fetch(location.href.split('#')[0], { cache: 'reload' });
-                    if (!res.ok) throw new Error('HTTP ' + res.status);
-                } catch (e) {
-                    console.warn('Pagina niet bereikbaar, herladen uitgesteld:', e.message);
-                    return setTimeout(herlaad, 15000);
-                }
-            }
-            location.reload();
-        }
-        if (!DEBUG) setTimeout(herlaad, HERLAAD_MS);
 
         laadCache();
         if (meldingen.length) {
