@@ -17,6 +17,7 @@
             --prio2: #f5a524;
             --prio3: #30a46c;
             --politie: #3e8ff0;
+            --brandweer: #e5484d;
         }
         * { box-sizing: border-box; }
         html, body { height: 100%; }
@@ -247,27 +248,28 @@
          */
         // 0127850 (politie-persalarm) staat er bewust niet meer bij: dat capcode-label zei
         // ook al gewoon "Politie", identiek aan het bronlabel ernaast — dat gaf "Politie Politie".
+        // De drie voorlichters zijn van de brandweer, vandaar allemaal brandweerrood (--brandweer).
         const CAPCODES = [
-            { code: '0104972', naam: 'VR ZAW', kleur: '#a78bfa' },
-            { code: '0127185', naam: 'VR KEN', kleur: '#2dd4bf' },
-            { code: '0205625', naam: 'VR NHN', kleur: '#f472b6' },
+            { code: '0104972', naam: 'VR ZAW', kleur: 'var(--brandweer)' },
+            { code: '0127185', naam: 'VR KEN', kleur: 'var(--brandweer)' },
+            { code: '0205625', naam: 'VR NHN', kleur: 'var(--brandweer)' },
         ];
         // Alle feeds worden opgehaald en samengevoegd; valt er één uit, dan komen de andere nog door.
         // Dezelfde melding uit meerdere feeds wordt één keer getoond, met alle bronnen erbij.
         // 'dienst' + 'kleur': het label dat bij elke melding uit die feed komt te staan.
         // (alarmeringen.nl is er bewust uit: alarmeringdroid + 112hier.nl dekken dezelfde politiemeldingen al.)
         const FEEDS = [
-            { naam: 'alarmeringdroid', url: 'https://www.alarmeringdroid.nl/rss/7738690e', dienst: 'Politie', kleur: '#3e8ff0' },
-            { naam: 'voorlichter Zaanstreek-Waterland', url: 'https://www.alarmeringdroid.nl/rss/5ef7e920', dienst: 'VR ZAW', kleur: '#a78bfa' },
-            { naam: 'voorlichter Kennemerland', url: 'https://www.alarmeringdroid.nl/rss/132e8974', dienst: 'VR KEN', kleur: '#2dd4bf' },
-            { naam: 'voorlichter Noord-Holland-Noord', url: 'https://www.alarmeringdroid.nl/rss/6fa78810', dienst: 'VR NHN', kleur: '#f472b6' },
-            { naam: 'alarmeringdroid politie (2)', url: 'https://www.alarmeringdroid.nl/rss/a067947f', dienst: 'Politie', kleur: '#3e8ff0' },
+            { naam: 'alarmeringdroid', url: 'https://www.alarmeringdroid.nl/rss/7738690e', dienst: 'Politie', kleur: 'var(--politie)' },
+            { naam: 'voorlichter Zaanstreek-Waterland', url: 'https://www.alarmeringdroid.nl/rss/5ef7e920', dienst: 'VR ZAW', kleur: 'var(--brandweer)' },
+            { naam: 'voorlichter Kennemerland', url: 'https://www.alarmeringdroid.nl/rss/132e8974', dienst: 'VR KEN', kleur: 'var(--brandweer)' },
+            { naam: 'voorlichter Noord-Holland-Noord', url: 'https://www.alarmeringdroid.nl/rss/6fa78810', dienst: 'VR NHN', kleur: 'var(--brandweer)' },
+            { naam: 'alarmeringdroid politie (2)', url: 'https://www.alarmeringdroid.nl/rss/a067947f', dienst: 'Politie', kleur: 'var(--politie)' },
             // 112hier.nl filtert hier zelf al per capcode (zie CAPCODES hierboven), dus per
             // capcode komt daar een eigen, al gefilterde feed vandaan.
-            { naam: '112hier.nl', url: 'https://112hier.nl/feed.json?capcodes=0127850', dienst: 'Politie', kleur: '#3e8ff0', formaat: '112hier' },
-            { naam: '112hier.nl (voorlichter Zaanstreek-Waterland)', url: 'https://112hier.nl/feed.json?capcodes=0104972', dienst: 'VR ZAW', kleur: '#a78bfa', formaat: '112hier' },
-            { naam: '112hier.nl (voorlichter Kennemerland)', url: 'https://112hier.nl/feed.json?capcodes=0127185', dienst: 'VR KEN', kleur: '#2dd4bf', formaat: '112hier' },
-            { naam: '112hier.nl (voorlichter Noord-Holland-Noord)', url: 'https://112hier.nl/feed.json?capcodes=0205625', dienst: 'VR NHN', kleur: '#f472b6', formaat: '112hier' },
+            { naam: '112hier.nl', url: 'https://112hier.nl/feed.json?capcodes=0127850', dienst: 'Politie', kleur: 'var(--politie)', formaat: '112hier' },
+            { naam: '112hier.nl (voorlichter Zaanstreek-Waterland)', url: 'https://112hier.nl/feed.json?capcodes=0104972', dienst: 'VR ZAW', kleur: 'var(--brandweer)', formaat: '112hier' },
+            { naam: '112hier.nl (voorlichter Kennemerland)', url: 'https://112hier.nl/feed.json?capcodes=0127185', dienst: 'VR KEN', kleur: 'var(--brandweer)', formaat: '112hier' },
+            { naam: '112hier.nl (voorlichter Noord-Holland-Noord)', url: 'https://112hier.nl/feed.json?capcodes=0205625', dienst: 'VR NHN', kleur: 'var(--brandweer)', formaat: '112hier' },
         ];
         const VERVERS_MS = 60 * 1000;          // nieuwe meldingen ophalen
         // 112hier.nl staat tot 30 verzoeken/minuut toe (anders 429). Vier 112hier-feeds elke 10 s
