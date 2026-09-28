@@ -11,7 +11,7 @@
             --panel-2: #181e29;
             --line: #232a36;
             --text: #eef1f6;
-            --muted: #8a94a6;
+            --muted: #9ba6b8;
             --dim: #5d6778;
             --prio1: #e5484d;
             --prio2: #f5a524;
@@ -57,7 +57,7 @@
         .dot.err { background: var(--prio1); }
         @keyframes ademen { 0%, 100% { opacity: 1; } 50% { opacity: 0.55; } }
         .clock { display: flex; align-items: baseline; gap: 1em; white-space: nowrap; }
-        .clock .time { font-size: 2.3em; font-weight: 700; font-variant-numeric: tabular-nums; }
+        .clock .time { font-size: 2.3em; font-weight: 800; font-variant-numeric: tabular-nums; }
         .clock .date { color: var(--muted); font-size: 1.1em; }
 
         /* ---------- Layout ---------- */
@@ -97,13 +97,13 @@
             50%, 100% { box-shadow: 0 0 2.6em 0.25em rgba(229, 72, 77, 0.65), inset 0 1px 0 rgba(255, 255, 255, 0.045); border-left-color: #e5484d; }
         }
         .hero .when { font-variant-numeric: tabular-nums; border-right: 1px solid var(--line); padding-right: 1.6em; }
-        .hero .when .t { font-size: 3.4em; font-weight: 700; line-height: 1; }
-        .hero .when .ago { color: var(--text); font-size: 1.15em; margin-top: 0.5em; }
-        .hero .when .dag { color: var(--muted); font-size: 1em; margin-top: 0.15em; }
+        .hero .when .t { font-size: 3.4em; font-weight: 800; line-height: 1; text-shadow: 0 2px 6px rgba(0, 0, 0, 0.5); }
+        .hero .when .ago { color: var(--text); font-size: 1.15em; font-weight: 600; margin-top: 0.5em; }
+        .hero .when .dag { color: var(--muted); font-size: 1em; font-weight: 600; margin-top: 0.15em; }
         .hero .tags { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5em 0.7em; margin-bottom: 0.6em; }
         .hero .msg {
-            font-size: 2.3em; font-weight: 650; line-height: 1.2;
-            overflow-wrap: anywhere;
+            font-size: 2.3em; font-weight: 800; line-height: 1.25;
+            overflow-wrap: anywhere; text-shadow: 0 2px 6px rgba(0, 0, 0, 0.45);
             display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden;
         }
 
@@ -124,13 +124,23 @@
             50%, 100% { box-shadow: 0 0 1em 0.2em rgba(229, 72, 77, 0.8); }
         }
         .cap {
-            display: inline-flex; align-items: center; gap: 0.4em;
-            color: var(--cap); font-weight: 600; white-space: nowrap;
+            display: inline-flex; align-items: center; gap: 0.45em;
+            color: var(--cap); font-weight: 700; white-space: nowrap;
+            text-shadow: 0 1px 3px rgba(0, 0, 0, 0.4);
         }
-        .hero .cap { font-size: 1.15em; }
-        /* Officieel logo per dienst als die er is; anders gewoon een gekleurde stip */
-        .cap img.icoon { width: 0.95em; height: 0.95em; object-fit: contain; flex: none; }
-        .cap:not(:has(img))::before {
+        .hero .cap { font-size: 1.2em; }
+        /* Officieel logo per dienst in een eigen rond "muntje": een vaste, gelijke vorm voor
+         * elke dienst (ongeacht de eigen beeldverhouding van het logo) zodat politie en
+         * brandweer altijd exact even groot en op dezelfde plek staan, met genoeg contrast
+         * tegen de achtergrond om ook van een afstand (tv) meteen op te vallen. */
+        .cap .icoon-rond {
+            display: inline-flex; align-items: center; justify-content: center; flex: none;
+            width: 1.35em; height: 1.35em; border-radius: 50%;
+            background: color-mix(in srgb, var(--cap) 30%, #05070a);
+            box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--cap) 55%, transparent);
+        }
+        .cap img.icoon { width: 0.85em; height: 0.85em; object-fit: contain; }
+        .cap:not(:has(.icoon-rond))::before {
             content: ''; display: inline-block; width: 0.6em; height: 0.6em; border-radius: 50%;
             background: var(--cap); vertical-align: 0.05em;
         }
@@ -156,13 +166,13 @@
             border-radius: 0.3em;
         }
         .rij.alt { background: var(--panel); box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.035); }
-        .rij .t { font-size: 1.35em; font-weight: 700; font-variant-numeric: tabular-nums; }
+        .rij .t { font-size: 1.35em; font-weight: 800; font-variant-numeric: tabular-nums; }
         .rij .body { min-width: 0; }
         .rij .txt {
-            font-size: 1.3em; line-height: 1.3;
+            font-size: 1.3em; font-weight: 600; line-height: 1.3;
             overflow: hidden; white-space: nowrap; text-overflow: ellipsis;
         }
-        .rij .caps { display: flex; gap: 1.2em; font-size: 0.9em; justify-content: flex-end; }
+        .rij .caps { display: flex; gap: 1.2em; font-size: 0.95em; justify-content: flex-end; }
 
         .empty {
             color: var(--muted); font-size: 1.5em; text-align: center; padding: 1.5em;
@@ -618,10 +628,12 @@
             e.style.setProperty('--cap', kleur);
             const src = icoonVoor(naam);
             if (src) {
+                const rond = el('span', 'icoon-rond');
                 const img = el('img', 'icoon');
                 img.src = src;
                 img.alt = '';
-                e.appendChild(img);
+                rond.appendChild(img);
+                e.appendChild(rond);
             }
             e.appendChild(document.createTextNode(naam));
             return e;
