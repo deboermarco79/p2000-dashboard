@@ -85,7 +85,7 @@
             border-left: 0.45em solid var(--cap, var(--politie));
             border-radius: 0.7em;
             padding: 1.5em 2em;
-            box-shadow: 0 1em 2.2em -1em rgba(0, 0, 0, 0.55);
+            box-shadow: 0 1em 2.2em -1em rgba(0, 0, 0, 0.55), inset 0 1px 0 rgba(255, 255, 255, 0.045);
         }
         .hero.fresh { animation: pulse 1.8s ease-in-out infinite; }
         @keyframes pulse {
@@ -111,12 +111,20 @@
             background: var(--panel-2); color: var(--text); white-space: nowrap;
         }
         .hero .badge { font-size: 1.1em; }
-        .badge.nieuw { background: #fff; color: #000; }
-        .cap { color: var(--cap); font-weight: 600; white-space: nowrap; }
+        .badge.nieuw {
+            background: #fff; color: #000;
+            box-shadow: 0 0 0.9em 0.05em color-mix(in srgb, var(--cap, var(--politie)) 55%, transparent);
+        }
+        .cap {
+            display: inline-flex; align-items: center; gap: 0.4em;
+            color: var(--cap); font-weight: 600; white-space: nowrap;
+        }
         .hero .cap { font-size: 1.15em; }
-        .cap::before {
+        /* Officieel logo per dienst als die er is; anders gewoon een gekleurde stip */
+        .cap img.icoon { width: 0.95em; height: 0.95em; object-fit: contain; flex: none; }
+        .cap:not(:has(img))::before {
             content: ''; display: inline-block; width: 0.6em; height: 0.6em; border-radius: 50%;
-            background: var(--cap); margin-right: 0.45em; vertical-align: 0.05em;
+            background: var(--cap); vertical-align: 0.05em;
         }
 
         /* ---------- Eerdere meldingen ---------- */
@@ -139,7 +147,7 @@
             border-left: 0.3em solid var(--cap, var(--line));
             border-radius: 0.3em;
         }
-        .rij.alt { background: var(--panel); }
+        .rij.alt { background: var(--panel); box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.035); }
         .rij .t { font-size: 1.35em; font-weight: 700; font-variant-numeric: tabular-nums; }
         .rij .body { min-width: 0; }
         .rij .txt {
@@ -588,22 +596,38 @@
             return e;
         }
 
-        // Bron van de melding als gekleurde tekst ("Politie", "Voorlichter van dienst ...")
-        function bronLabels(m, parent) {
-            for (const b of m.bronnen || []) {
-                const e = el('span', 'cap bron', b.naam);
-                e.style.setProperty('--cap', b.kleur);
-                parent.appendChild(e);
-            }
+        /* Officiële beeldmerken per dienst (het witte politielogo, het gouden brandweerlogo),
+         * zodat een label ook vanaf de bank in één oogopslag te herkennen is, niet pas na het
+         * lezen van de tekst. Losse bestanden met transparante achtergrond, zie /icons. */
+        function icoonVoor(naam) {
+            if (naam === 'Politie') return 'icons/politie.png';
+            if (naam && naam.startsWith('VR ')) return 'icons/brandweer.png';
+            return null;
         }
-        // Capcode-namen als gekleurde tekst (zeldzaam: de capcode moet toevallig in de tekst staan)
+        // Eén label-span met icoon + tekst, in de kleur van de dienst/capcode
+        function capEl(cls, naam, kleur) {
+            const e = el('span', cls);
+            e.style.setProperty('--cap', kleur);
+            const src = icoonVoor(naam);
+            if (src) {
+                const img = el('img', 'icoon');
+                img.src = src;
+                img.alt = '';
+                e.appendChild(img);
+            }
+            e.appendChild(document.createTextNode(naam));
+            return e;
+        }
+
+        // Bron van de melding als gekleurd label met icoon ("Politie", "VR ZAW", ...)
+        function bronLabels(m, parent) {
+            for (const b of m.bronnen || []) parent.appendChild(capEl('cap bron', b.naam, b.kleur));
+        }
+        // Capcode-namen als gekleurd label (zeldzaam: de capcode moet toevallig in de tekst staan)
         function capLabels(m, parent) {
             for (const code of m.capcodes || []) {
                 const c = capInfo(code);
-                if (!c) continue;
-                const e = el('span', 'cap capcode', c.naam);
-                e.style.setProperty('--cap', c.kleur);
-                parent.appendChild(e);
+                if (c) parent.appendChild(capEl('cap capcode', c.naam, c.kleur));
             }
         }
         const isNieuw = m => Date.now() - m.tijd < NIEUW_MS;
