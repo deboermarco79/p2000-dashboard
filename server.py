@@ -90,9 +90,12 @@ class Handler(SimpleHTTPRequestHandler):
             self.end_headers()
             self.wfile.write(data)
             return
-        # Alleen de pagina zelf; de rest van de map (zoals .git) blijft privé
+        # Alleen de pagina zelf en de dienst-logo's; de rest van de map (zoals .git) blijft privé
         if pad in ("/", "/index.html"):
             self.path = "/index.html"
+            super().do_GET()
+            return
+        if pad.startswith("/icons/") and "/" not in pad[len("/icons/"):]:
             super().do_GET()
             return
         self.send_error(404, "Niet gevonden")
