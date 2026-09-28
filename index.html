@@ -87,10 +87,14 @@
             padding: 1.5em 2em;
             box-shadow: 0 1em 2.2em -1em rgba(0, 0, 0, 0.55), inset 0 1px 0 rgba(255, 255, 255, 0.045);
         }
-        .hero.fresh { animation: pulse 1.8s ease-in-out infinite; }
-        @keyframes pulse {
-            0%, 100% { box-shadow: 0 0 0 0 transparent; }
-            50% { box-shadow: 0 0 2.2em 0.1em color-mix(in srgb, var(--cap, var(--politie)) 45%, transparent); }
+        /* Nieuwe melding: een knipperend blauw/rood zwaailicht, zoals een politie-/hulpdienstvoertuig —
+         * dat trekt de aandacht veel directer dan een gewone kleurpuls, ook vanaf de bank. */
+        .hero.fresh {
+            animation: zwaailicht 1.4s steps(1, end) infinite;
+        }
+        @keyframes zwaailicht {
+            0%, 49% { box-shadow: 0 0 2.6em 0.25em rgba(62, 143, 240, 0.65), inset 0 1px 0 rgba(255, 255, 255, 0.045); border-left-color: #3e8ff0; }
+            50%, 100% { box-shadow: 0 0 2.6em 0.25em rgba(229, 72, 77, 0.65), inset 0 1px 0 rgba(255, 255, 255, 0.045); border-left-color: #e5484d; }
         }
         .hero .when { font-variant-numeric: tabular-nums; border-right: 1px solid var(--line); padding-right: 1.6em; }
         .hero .when .t { font-size: 3.4em; font-weight: 700; line-height: 1; }
@@ -113,7 +117,11 @@
         .hero .badge { font-size: 1.1em; }
         .badge.nieuw {
             background: #fff; color: #000;
-            box-shadow: 0 0 0.9em 0.05em color-mix(in srgb, var(--cap, var(--politie)) 55%, transparent);
+            animation: zwaailicht-badge 1.4s steps(1, end) infinite;
+        }
+        @keyframes zwaailicht-badge {
+            0%, 49% { box-shadow: 0 0 1em 0.2em rgba(62, 143, 240, 0.8); }
+            50%, 100% { box-shadow: 0 0 1em 0.2em rgba(229, 72, 77, 0.8); }
         }
         .cap {
             display: inline-flex; align-items: center; gap: 0.4em;
