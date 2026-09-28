@@ -9,9 +9,7 @@
 // Alleen de feeds hieronder mogen opgehaald worden (geen open proxy voor
 // willekeurige URL's).
 const TOEGESTAAN = [
-    'https://alarmeringen.nl/feeds/user/e3826aac-12d9-4685-be9e-e30a469de97c.rss',
     'https://www.alarmeringdroid.nl/rss/7738690e',
-    'https://alarmeringen.nl/feeds/user/edc2a4dd-b5ed-430c-85a7-7caf1982545f.rss',
     'https://www.alarmeringdroid.nl/rss/5ef7e920',
     'https://www.alarmeringdroid.nl/rss/132e8974',
     'https://www.alarmeringdroid.nl/rss/6fa78810',
