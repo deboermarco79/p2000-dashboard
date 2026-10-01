@@ -37,15 +37,16 @@ async function haal(url) {
     } finally { clearTimeout(timer); }
 }
 
-async function leesRss(naam, url) {
+async function leesRss(naam, url, max = 8) {
     const xml = await (await haal(url)).text();
     const uit = [];
     for (const m of xml.matchAll(/<item\b[\s\S]*?<\/item>/g)) {
         const blok = m[0];
         const veld = tag => { const x = blok.match(new RegExp('<' + tag + '[^>]*>([\\s\\S]*?)</' + tag + '>')); return x ? ontsnap(x[1]) : ''; };
         const plaatje = (blok.match(/<(?:media:content|media:thumbnail|enclosure)\b[^>]*\burl="([^"]+)"[^>]*>/) || [])[1] || '';
-        uit.push({ bron: naam, titel: veld('title'), tekst: veld('description').slice(0, 400), datum: veld('pubDate'), plaatje });
-        if (uit.length >= 8) break;
+        const plaatjeInHtml = (blok.replace(/<!\[CDATA\[([\s\S]*?)\]\]>/g, '$1').replace(/&lt;/g, '<').replace(/&quot;/g, '"').match(/<img[^>]+src=["']([^"']+)/i) || [])[1] || '';
+        uit.push({ bron: naam, titel: veld('title'), tekst: veld('description').slice(0, 400), datum: veld('pubDate'), plaatje: plaatje || plaatjeInHtml.replace(/&amp;/g, '&') });
+        if (uit.length >= max) break;
     }
     return uit;
 }
@@ -68,7 +69,9 @@ async function weer() {
 async function handler(req, res) {
     const soort = req.query.soort;
     try {
-        const data = soort === 'weer' ? await weer()
+        const kolom = /^nieuws([01])$/.exec(soort || '');
+        const data = kolom ? await leesRss(NIEUWS[kolom[1]][0], NIEUWS[kolom[1]][1], 5)
+            : soort === 'weer' ? await weer()
             : soort === 'nieuws' ? await feeds(NIEUWS)
             : soort === 'social' ? await feeds(SOCIAL)
             : null;
