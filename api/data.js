@@ -62,6 +62,18 @@ async function politieNieuws(max = 5) {
     return uit.slice(0, max);
 }
 
+// Eerst de politie-API (Eenheid Noord-Holland). Weigert die (403/blokkade), dan de RSS-feeds van politie.nl
+// (provinciefeeds, dus zonder eenheidfilter) zodat de kolom niet leeg blijft.
+async function nieuwsMetVangnet() {
+    try {
+        const uit = await politieNieuws();
+        if (uit.length) return uit;
+    } catch (e) { /* vangnet hieronder */ }
+    const uit = await feeds(NIEUWS);
+    if (!uit.length) throw new Error('politie-api en RSS-feeds beide niet bereikbaar');
+    return uit.slice(0, 5);
+}
+
 // Gezocht en vermist (v5, met sleutel): afwisselend, alleen eenheid Noord-Holland.
 async function politieGezocht(max = 5) {
     if (!POLITIE_KEY) throw new Error('POLITIE_API_KEY ontbreekt');
@@ -132,7 +144,7 @@ async function weer() {
 async function handler(req, res) {
     const soort = req.query.soort;
     try {
-        const data = soort === 'nieuws0' || soort === 'nieuws' ? await politieNieuws()
+        const data = soort === 'nieuws0' || soort === 'nieuws' ? await nieuwsMetVangnet()
             : soort === 'nieuws1' ? await politieGezocht()
             : soort === 'weer' ? await weer()
             : soort === 'social' ? await feeds(SOCIAL)

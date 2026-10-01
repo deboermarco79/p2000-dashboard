@@ -1,6 +1,15 @@
 {
+  "regions": [
+    "fra1"
+  ],
   "rewrites": [
-    { "source": "/data/:soort", "destination": "/api/data?soort=:soort" },
-    { "source": "/narrowcast", "destination": "/narrowcast.html" }
+    {
+      "source": "/data/:soort",
+      "destination": "/api/data?soort=:soort"
+    },
+    {
+      "source": "/narrowcast",
+      "destination": "/narrowcast.html"
+    }
   ]
 }
