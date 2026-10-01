@@ -18,6 +18,8 @@ const TOEGESTAAN = [
     'https://112hier.nl/feed.json?capcodes=0104972',
     'https://112hier.nl/feed.json?capcodes=0127185',
     'https://112hier.nl/feed.json?capcodes=0205625',
+    'https://rss.politie.nl/rss/ob/provincies/noord-holland.xml',
+    'https://rss.politie.nl/rss/ab/provincies/noord-holland.xml',
 ];
 
 async function handler(req, res) {

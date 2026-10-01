@@ -97,7 +97,12 @@ def haal_url(url):
         if c and time.time() - c[0] < DATA_CACHE_SECONDEN:
             return c[1]
         try:
-            verzoek = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0 (narrowcasting)"})
+            verzoek = urllib.request.Request(url, headers={
+                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36",
+                "Accept": "application/rss+xml, application/xml, text/xml, */*",
+                "Accept-Language": "nl-NL,nl;q=0.9,en;q=0.8",
+                "Referer": url.split("/", 3)[0] + "//" + url.split("/", 3)[2] + "/",
+            })
             with urllib.request.urlopen(verzoek, timeout=15) as r:
                 data = r.read()
             _data_cache[url] = (time.time(), data)

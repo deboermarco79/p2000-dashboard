@@ -52,15 +52,64 @@ function toon(i, items) {
     document.getElementById('t' + i).textContent = items[0].bron + (i ? ' (2)' : ' (1)');
 }
 
-async function laad(i) {
+/* Slim ophalen, zoals het P2000-dashboard: een reeks routes, de werkende route wordt onthouden.
+ * 1. eigen endpoint (server.py of Vercel), 2. eigen proxy /api/feed, 3. rechtstreeks, 4. publieke proxies. */
+const BRONNEN = [
+    'https://rss.politie.nl/rss/ob/provincies/noord-holland.xml',
+    'https://rss.politie.nl/rss/ab/provincies/noord-holland.xml',
+];
+const enc = encodeURIComponent;
+const ROUTES = [
+    { naam: 'eigen', json: true, url: (u, i) => 'data/nieuws' + i, timeout: 15000 },
+    { naam: 'eigen proxy', url: u => '/api/feed?url=' + enc(u), timeout: 15000 },
+    { naam: 'rechtstreeks', url: u => u },
+    { naam: 'allorigins', url: u => 'https://api.allorigins.win/raw?url=' + enc(u) },
+    { naam: 'allorigins-json', url: u => 'https://api.allorigins.win/get?url=' + enc(u), lees: d => d.contents },
+    { naam: 'codetabs', url: u => 'https://api.codetabs.com/v1/proxy?quest=' + enc(u) },
+    { naam: 'cors.lol', url: u => 'https://api.cors.lol/?url=' + enc(u) },
+];
+
+function leesXml(tekst, bron) {
+    const doc = new DOMParser().parseFromString(tekst, 'text/xml');
+    if (doc.querySelector('parsererror') || !doc.querySelector('item')) throw new Error('geen feed');
+    return [...doc.querySelectorAll('item')].slice(0, AANTAL).map(item => {
+        const t = tag => { const x = item.getElementsByTagName(tag)[0]; return x ? x.textContent.trim() : ''; };
+        let plaatje = '';
+        for (const tag of ['media:content', 'media:thumbnail', 'enclosure']) {
+            const x = item.getElementsByTagName(tag)[0];
+            if (x && x.getAttribute('url') && (tag !== 'enclosure' || /image/.test(x.getAttribute('type') || 'image'))) { plaatje = x.getAttribute('url'); break; }
+        }
+        if (!plaatje) { const m = (t('description') + ' ' + t('content:encoded')).match(/<img[^>]+src=["']([^"']+)/i); if (m) plaatje = m[1]; }
+        return { bron, titel: t('title'), plaatje };
+    });
+}
+
+async function probeer(route, i) {
+    const ctrl = new AbortController();
+    const timer = setTimeout(() => ctrl.abort(), route.timeout || 8000);
     try {
-        const r = await fetch('data/nieuws' + i, { cache: 'no-store' });
-        if (!r.ok) throw new Error(r.status);
-        toon(i, await r.json());
-    } catch (e) {
-        const k = document.getElementById('k' + i);
-        if (!k.querySelector('.kaart')) { k.textContent = ''; k.appendChild(el('div', 'fout', 'Feed niet bereikbaar.')); }
+        const r = await fetch(route.url(BRONNEN[i], i), { cache: 'no-store', signal: ctrl.signal });
+        if (!r.ok) throw new Error('HTTP ' + r.status);
+        if (route.json) { const d = await r.json(); if (!Array.isArray(d)) throw new Error('geen lijst'); return d; }
+        return leesXml(route.lees ? route.lees(await r.json()) : await r.text(), 'Politie Noord-Holland');
+    } finally { clearTimeout(timer); }
+}
+
+async function laad(i) {
+    const sleutel = 'nieuws-route-' + i;
+    let voorkeur = null;
+    try { voorkeur = localStorage.getItem(sleutel); } catch (e) {}
+    const volgorde = [...ROUTES].sort((a, b) => (b.naam === voorkeur) - (a.naam === voorkeur));
+    for (const route of volgorde) {
+        try {
+            const items = await probeer(route, i);
+            try { localStorage.setItem(sleutel, route.naam); } catch (e) {}
+            toon(i, items);
+            return;
+        } catch (e) { console.warn('nieuws', i, 'route mislukt:', route.naam, e.message); }
     }
+    const k = document.getElementById('k' + i);
+    if (!k.querySelector('.kaart')) { k.textContent = ''; k.appendChild(el('div', 'fout', 'Feed niet bereikbaar.')); }
 }
 const alles = () => { laad(0); laad(1); };
 alles(); setInterval(alles, VERVERS_MS);
