@@ -46,8 +46,8 @@ WEER_PLAATS = "Zaandam"
 WEER_LAT, WEER_LON = 52.44, 4.83
 # Nieuwsbronnen: (naam, rss-url)
 NIEUWS_FEEDS = [
-    ("NOS", "https://feeds.nos.nl/nosnieuwsalgemeen"),
-    ("NH Nieuws", "https://www.nhnieuws.nl/rss"),
+    ("Politie Noord-Holland", "https://rss.politie.nl/rss/ob/provincies/noord-holland.xml"),
+    ("Politie Noord-Holland", "https://rss.politie.nl/rss/ab/provincies/noord-holland.xml"),
 ]
 # Sociale media: (naam, rss-url). Gratis en zonder sleutel werkt bijv. Mastodon:
 #   ("Gemeente", "https://mastodon.nl/@gebruikersnaam.rss")
