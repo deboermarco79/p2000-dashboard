@@ -124,6 +124,10 @@ def lees_rss(naam, url, max_items=8):
                 if u and (e.get("type", "image").startswith("image") or e.get("medium") == "image"):
                     plaatje = u
                     break
+        if not plaatje:
+            html = tekst("description") + " " + " ".join((e.text or "") for e in item.iter() if e.tag.endswith("}encoded"))
+            m = re.search(r"<img[^>]+src=[\"']([^\"']+)", html)
+            plaatje = m.group(1) if m else ""
         uit.append({"bron": naam, "titel": tekst("title"), "tekst": omschrijving[:400],
                     "datum": tekst("pubDate"), "plaatje": plaatje})
         if len(uit) >= max_items:
@@ -153,7 +157,15 @@ def weer_json():
     return json.dumps(d).encode()
 
 
+def nieuws_kolom(i):
+    """Eén nieuwsfeed, alleen de vijf meest recente items (voor nieuws.html)."""
+    naam, url = NIEUWS_FEEDS[i]
+    return json.dumps(lees_rss(naam, url, 5)).encode()
+
+
 DATA_ROUTES = {
+    "/data/nieuws0": lambda: nieuws_kolom(0),
+    "/data/nieuws1": lambda: nieuws_kolom(1),
     "/data/weer": weer_json,
     "/data/nieuws": lambda: feeds_json(NIEUWS_FEEDS),
     "/data/social": lambda: feeds_json(SOCIAL_FEEDS),
@@ -199,7 +211,7 @@ class Handler(SimpleHTTPRequestHandler):
             self.end_headers()
             self.wfile.write(data)
             return
-        if pad == "/narrowcast.html":
+        if pad in ("/narrowcast.html", "/nieuws.html"):
             super().do_GET()
             return
         # Alleen de pagina zelf en de dienst-logo's; de rest van de map (zoals .git) blijft privé
