@@ -100,16 +100,18 @@ async function laad(i) {
     let voorkeur = null;
     try { voorkeur = localStorage.getItem(sleutel); } catch (e) {}
     const volgorde = [...ROUTES].sort((a, b) => (b.naam === voorkeur) - (a.naam === voorkeur));
+    const fouten = [];
     for (const route of volgorde) {
         try {
             const items = await probeer(route, i);
             try { localStorage.setItem(sleutel, route.naam); } catch (e) {}
             toon(i, items);
             return;
-        } catch (e) { console.warn('nieuws', i, 'route mislukt:', route.naam, e.message); }
+        } catch (e) { console.warn('nieuws', i, 'route mislukt:', route.naam, e.message); fouten.push(route.naam + ': ' + (e.name === 'AbortError' ? 'time-out' : e.message === 'Failed to fetch' ? 'geblokkeerd' : e.message)); }
     }
     const k = document.getElementById('k' + i);
-    if (!k.querySelector('.kaart')) { k.textContent = ''; k.appendChild(el('div', 'fout', 'Feed niet bereikbaar.')); }
+    if (!k.querySelector('.kaart')) { k.textContent = ''; k.appendChild(el('div', 'fout', 'Feed niet bereikbaar.'));
+        k.appendChild(el('div', 'fout', fouten.join(' · '))); }
 }
 const alles = () => { laad(0); laad(1); };
 alles(); setInterval(alles, VERVERS_MS);
