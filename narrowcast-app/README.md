@@ -3,7 +3,7 @@
 Lightweight digital signage for a communications team (e.g. a police newsroom).
 
 - **`/receiver`** — 16:9 / 1080p full-screen player, runs as a Google Cast Custom Web Receiver. Loops the active playlist, preloads the next slide, and is instantly overridden by a pulsating red alert overlay.
-- **`/dashboard`** — Command Center: mocked device status, the red "acute alarm" button, and playlist management.
+- **`/dashboard`** — Command Center: mocked device status, the red "acute alarm" button (login required), and playlist management.
 - **Stack:** Next.js 14 (App Router), TypeScript, Tailwind CSS, Supabase (Postgres + Realtime).
 
 > This app lives in the `narrowcast-app/` subfolder of the repo, next to the existing static P2000 dashboard. Run all commands below from inside `narrowcast-app/`.
@@ -13,6 +13,7 @@ Lightweight digital signage for a communications team (e.g. a police newsroom).
 1. Create a project at [supabase.com](https://supabase.com).
 2. Open **SQL Editor**, paste the contents of [`database.sql`](./database.sql) and run it. This creates the `playlist` and `alerts` tables, enforces *one active alert at a time*, enables Realtime on both tables, and seeds a demo playlist.
 3. In **Project Settings → API**, copy the *Project URL* and the *anon public* key.
+4. In **Authentication → Users**, add a user (email + password) for each team member. Disable public sign-ups under **Authentication → Providers → Email** so nobody else can register.
 
 ## 2. Environment variables
 
@@ -23,12 +24,9 @@ cp .env.example .env.local
 ```env
 NEXT_PUBLIC_SUPABASE_URL=https://your-project-ref.supabase.co
 NEXT_PUBLIC_SUPABASE_ANON_KEY=your-anon-public-key
-
-# optional: HTTP Basic Auth on /dashboard (any username, this password)
-DASHBOARD_PASSWORD=choose-a-password
 ```
 
-Without the Supabase variables the app runs in **demo mode**: the receiver plays a built-in playlist and the dashboard is read-only. Preview the alert overlay with `/receiver?alert=SGBO%20UPDATE:%20PERSALARM`.
+Without the Supabase variables the app runs in **demo mode**: the receiver plays a built-in playlist and the dashboard is read-only and needs no login. Preview the alert overlay with `/receiver?alert=SGBO%20UPDATE:%20PERSALARM`.
 
 ## 3. Run locally
 
@@ -51,7 +49,6 @@ vercel login
 vercel link                      # create a NEW project; do not link the existing P2000 project
 vercel env add NEXT_PUBLIC_SUPABASE_URL production
 vercel env add NEXT_PUBLIC_SUPABASE_ANON_KEY production
-vercel env add DASHBOARD_PASSWORD production
 vercel --prod
 ```
 
@@ -75,6 +72,5 @@ If you deploy through Git instead, set **Root Directory** to `narrowcast-app` in
 
 ## Before production
 
-- `database.sql` ships **open RLS policies** (anon may read and write) so the prototype works with just the anon key. Replace them with Supabase Auth: authenticated-only writes, anon read-only for the receiver.
-- The `DASHBOARD_PASSWORD` gate is a placeholder for page access; it does not protect the database.
+- Access control is Supabase Auth + RLS: the receiver (anon key) can only read; inserts/updates/deletes require a logged-in user. The redirect to `/login` is a UI convenience, the real protection is the RLS policies. Keep public sign-ups disabled.
 - Device status is mocked (`components/DeviceStatus.tsx`). A real version needs a heartbeat from the receiver into a `devices` table.

@@ -1,5 +1,6 @@
 "use client";
 
+import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 import AlertPanel from "@/components/AlertPanel";
 import DeviceStatus from "@/components/DeviceStatus";
@@ -12,6 +13,21 @@ export default function Dashboard() {
   const [items, setItems] = useState<PlaylistItem[]>(isDemo ? DEMO_PLAYLIST : []);
   const [active, setActive] = useState<Alert | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const router = useRouter();
+  // In live mode the page stays blank until a Supabase session is confirmed.
+  const [authed, setAuthed] = useState(isDemo);
+
+  useEffect(() => {
+    if (!supabase) return;
+    supabase.auth.getSession().then(({ data }) => {
+      if (data.session) setAuthed(true);
+      else router.replace("/login");
+    });
+    const { data } = supabase.auth.onAuthStateChange((_e, session) => {
+      if (!session) router.replace("/login");
+    });
+    return () => data.subscription.unsubscribe();
+  }, [router]);
 
   const load = useCallback(async () => {
     if (!supabase) return;
@@ -26,7 +42,7 @@ export default function Dashboard() {
   }, []);
 
   useEffect(() => {
-    if (!supabase) return;
+    if (!supabase || !authed) return;
     load();
     const channel = supabase
       .channel("dashboard")
@@ -36,7 +52,7 @@ export default function Dashboard() {
     return () => {
       supabase!.removeChannel(channel);
     };
-  }, [load]);
+  }, [load, authed]);
 
   /** Runs a Supabase write, surfaces errors; demo mode is read-only. */
   async function write(fn: () => PromiseLike<{ error: { message: string } | null }>) {
@@ -80,6 +96,8 @@ export default function Dashboard() {
     await write(() => supabase!.from("playlist").update({ order_index: a }).eq("id", other.id));
   };
 
+  if (!authed) return null;
+
   return (
     <div className="min-h-screen">
       <header className="border-b border-slate-200 bg-white">
@@ -92,6 +110,11 @@ export default function Dashboard() {
             <a href="/receiver" target="_blank" className="text-slate-500 hover:text-slate-900">
               Receiver openen ↗
             </a>
+            {!isDemo && (
+              <button onClick={() => supabase!.auth.signOut()} className="text-slate-500 hover:text-slate-900">
+                Uitloggen
+              </button>
+            )}
             <span
               className={`rounded-full px-3 py-1 text-xs font-medium ${
                 isDemo ? "bg-amber-100 text-amber-800" : "bg-emerald-100 text-emerald-800"

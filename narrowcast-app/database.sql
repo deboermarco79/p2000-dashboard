@@ -49,16 +49,19 @@ alter publication supabase_realtime add table public.playlist;
 alter publication supabase_realtime add table public.alerts;
 
 -- ───────────────────────── row level security ───────────────
--- PROTOTYPE POLICIES: the anon key may read AND write. Fine for a closed demo,
--- NOT for production. Before going live, restrict writes to authenticated users
--- (Supabase Auth) and keep read-only access for the receiver.
+-- The receiver (anon key, no login) may only READ. Writes require a logged-in
+-- Supabase Auth user (create users under Authentication → Users).
 alter table public.playlist enable row level security;
 alter table public.alerts   enable row level security;
 
-create policy "playlist anon all" on public.playlist
-  for all to anon, authenticated using (true) with check (true);
-create policy "alerts anon all" on public.alerts
-  for all to anon, authenticated using (true) with check (true);
+drop policy if exists "playlist anon all" on public.playlist;
+drop policy if exists "alerts anon all"   on public.alerts;
+
+create policy "playlist read"  on public.playlist for select to anon, authenticated using (true);
+create policy "playlist write" on public.playlist for all    to authenticated using (true) with check (true);
+
+create policy "alerts read"    on public.alerts   for select to anon, authenticated using (true);
+create policy "alerts write"   on public.alerts   for all    to authenticated using (true) with check (true);
 
 -- ───────────────────────── seed data ────────────────────────
 insert into public.playlist (type, url, duration_seconds, order_index, is_active) values
