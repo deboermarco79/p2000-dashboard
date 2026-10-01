@@ -192,16 +192,23 @@ def _van_eenheid(b):
 
 
 def politie_json(pad, kop=None):
-    verzoek = urllib.request.Request(POLITIE + pad, headers={
-        "Accept": "application/json", **(kop or {}),
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36"})
-    try:
-        with urllib.request.urlopen(verzoek, timeout=15) as r:
-            if r.status == 204:
-                return None
-            return json.loads(r.read())
-    except Exception as fout:
-        raise RuntimeError(f"politie-api: {fout}")
+    # Sleutel altijd meesturen als hij er is; bij een 403 een tweede poging met een andere User-Agent.
+    sleutel = {"x-api-key": POLITIE_KEY} if POLITIE_KEY else {}
+    fout = None
+    for ua in ("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36",
+               "narrowcasting/1.0"):
+        verzoek = urllib.request.Request(POLITIE + pad, headers={"Accept": "application/json", **sleutel, **(kop or {}), "User-Agent": ua})
+        try:
+            with urllib.request.urlopen(verzoek, timeout=15) as r:
+                return None if r.status == 204 else json.loads(r.read())
+        except urllib.error.HTTPError as e:
+            fout = e
+            if e.code != 403:
+                break
+        except Exception as e:
+            fout = e
+            break
+    raise RuntimeError(f"politie-api: {fout}")
 
 
 def politie_nieuws(maximaal=5):
