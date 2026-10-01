@@ -1,0 +1,183 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Narrowcasting</title>
+<style>
+    :root { --bg:#0a0d12; --panel:#121720; --line:#232a36; --text:#eef1f6; --muted:#9ba6b8; --accent:#3e8ff0; }
+    * { box-sizing: border-box; }
+    html, body { height: 100%; margin: 0; overflow: hidden; background: var(--bg); color: var(--text);
+        font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; font-size: 1.6vw; }
+    .pagina { position: absolute; inset: 0 0 .8vw 0; opacity: 0; visibility: hidden; transition: opacity .8s; padding: 3vw 4vw; }
+    .pagina.actief { opacity: 1; visibility: visible; }
+    iframe.pagina { padding: 0; border: 0; width: 100%; height: calc(100% - .8vw); }
+    h1 { margin: 0 0 2vw; font-size: 3.2vw; letter-spacing: .05em; text-transform: uppercase; color: var(--muted); }
+    #voortgang { position: absolute; left: 0; bottom: 0; height: .8vw; background: var(--accent); width: 0; }
+    #bolletjes { position: absolute; right: 1.5vw; bottom: 1.4vw; display: flex; gap: .6vw; z-index: 5; }
+    #bolletjes i { width: .9vw; height: .9vw; border-radius: 50%; background: #ffffff33; }
+    #bolletjes i.actief { background: #fff; }
+
+    /* Weer */
+    .weer { display: grid; grid-template-rows: auto 1fr auto; }
+    .nu { display: flex; align-items: center; gap: 4vw; }
+    .nu .icoon { font-size: 14vw; line-height: 1; }
+    .nu .temp { font-size: 12vw; font-weight: 700; line-height: 1; }
+    .nu .omschr { font-size: 3vw; }
+    .nu .detail { color: var(--muted); margin-top: .6vw; font-size: 2vw; }
+    .dagen { display: grid; grid-template-columns: repeat(5, 1fr); gap: 1.5vw; align-self: end; }
+    .dag { background: var(--panel); border: 1px solid var(--line); border-radius: 1.2vw; padding: 1.5vw; text-align: center; }
+    .dag .naam { font-size: 2vw; color: var(--muted); text-transform: capitalize; }
+    .dag .icoon { font-size: 5vw; margin: .5vw 0; }
+    .dag .max { font-size: 3vw; font-weight: 700; }
+    .dag .min { color: var(--muted); }
+
+    /* Nieuws en sociale media */
+    .kaarten { display: grid; gap: 1.5vw; }
+    .kaart { background: var(--panel); border: 1px solid var(--line); border-radius: 1.2vw; padding: 1.6vw 2vw;
+        display: flex; gap: 2vw; align-items: center; overflow: hidden; }
+    .kaart img { width: 14vw; height: 8vw; object-fit: cover; border-radius: .8vw; flex: none; }
+    .kaart .bron { color: var(--accent); font-weight: 700; font-size: 1.6vw; text-transform: uppercase; letter-spacing: .04em; }
+    .kaart .titel { font-size: 2.5vw; font-weight: 700; line-height: 1.15; margin: .2vw 0; }
+    .kaart .tekst { color: var(--muted); font-size: 1.8vw; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+    .social .kaart .titel { font-weight: 400; font-size: 2.3vw; display: -webkit-box; -webkit-line-clamp: 4; -webkit-box-orient: vertical; overflow: hidden; }
+    .tijd { position: absolute; top: 3vw; right: 4vw; font-size: 3.2vw; font-weight: 700; }
+</style>
+</head>
+<body>
+<div id="voortgang"></div>
+<div id="bolletjes"></div>
+<script>
+/* ================= Instellingen ================= */
+const WISSEL_MS = 20 * 1000;          // elke pagina staat 20 seconden in beeld
+const VERVERS_MS = 5 * 60 * 1000;     // weer/nieuws/social opnieuw ophalen
+const TZ = 'Europe/Amsterdam';
+/* Volgorde van de pagina's. Een pagina zonder inhoud (bijv. geen social-feeds ingesteld) wordt overgeslagen. */
+const PAGINAS = [
+    { id: 'p2000', type: 'iframe', url: 'index.html' },
+    { id: 'weer', type: 'weer', url: 'data/weer' },
+    { id: 'nieuws', type: 'kaarten', titel: 'Nieuws', url: 'data/nieuws', aantal: 4 },
+    { id: 'social', type: 'kaarten', titel: 'Sociale media', url: 'data/social', aantal: 4, klasse: 'social' },
+];
+
+/* ================= Hulpfuncties ================= */
+const el = (tag, cls, tekst) => { const e = document.createElement(tag); if (cls) e.className = cls; if (tekst != null) e.textContent = tekst; return e; };
+const WEERCODES = { 0:['☀️','Zonnig'],1:['🌤️','Overwegend zonnig'],2:['⛅','Half bewolkt'],3:['☁️','Bewolkt'],45:['🌫️','Mist'],48:['🌫️','Rijpmist'],
+    51:['🌦️','Lichte motregen'],53:['🌦️','Motregen'],55:['🌧️','Zware motregen'],61:['🌧️','Lichte regen'],63:['🌧️','Regen'],65:['🌧️','Zware regen'],
+    66:['🌧️','IJsregen'],67:['🌧️','IJsregen'],71:['🌨️','Lichte sneeuw'],73:['🌨️','Sneeuw'],75:['❄️','Zware sneeuw'],77:['🌨️','Sneeuwkorrels'],
+    80:['🌦️','Buien'],81:['🌧️','Zware buien'],82:['⛈️','Hevige buien'],85:['🌨️','Sneeuwbuien'],86:['🌨️','Zware sneeuwbuien'],95:['⛈️','Onweer'],96:['⛈️','Onweer met hagel'],99:['⛈️','Zwaar onweer']};
+const weer = c => WEERCODES[c] || ['🌡️', ''];
+const windrichting = g => ['N','NO','O','ZO','Z','ZW','W','NW'][Math.round(g / 45) % 8];
+
+async function haalJson(url) {
+    const r = await fetch(url, { cache: 'no-store' });
+    if (!r.ok) throw new Error(r.status);
+    return r.json();
+}
+
+/* ================= Pagina's bouwen ================= */
+function bouwKlok(p) {
+    const k = el('div', 'tijd');
+    const tik = () => { k.textContent = new Date().toLocaleTimeString('nl-NL', { timeZone: TZ, hour: '2-digit', minute: '2-digit' }); };
+    tik(); setInterval(tik, 10000);
+    p.appendChild(k);
+}
+
+function vulWeer(p, d) {
+    leeg(p);
+    const [icoon, omschr] = weer(d.current.weather_code);
+    const kop = el('h1', null, 'Weer in ' + d.plaats);
+    const nu = el('div', 'nu');
+    nu.appendChild(el('div', 'icoon', icoon));
+    nu.appendChild(el('div', 'temp', Math.round(d.current.temperature_2m) + '°'));
+    const rest = el('div');
+    rest.appendChild(el('div', 'omschr', omschr));
+    rest.appendChild(el('div', 'detail', 'Gevoel ' + Math.round(d.current.apparent_temperature) + '° · wind ' +
+        windrichting(d.current.wind_direction_10m) + ' ' + Math.round(d.current.wind_speed_10m) + ' Bft'));
+    const dg = d.daily;
+    rest.appendChild(el('div', 'detail', 'Kans op regen vandaag ' + dg.precipitation_probability_max[0] + '%'));
+    nu.appendChild(rest);
+    const dagen = el('div', 'dagen');
+    dg.time.forEach((t, i) => {
+        const x = el('div', 'dag');
+        const naam = i === 0 ? 'vandaag' : new Date(t + 'T12:00:00').toLocaleDateString('nl-NL', { weekday: 'long' });
+        x.appendChild(el('div', 'naam', naam));
+        x.appendChild(el('div', 'icoon', weer(dg.weather_code[i])[0]));
+        x.appendChild(el('div', 'max', Math.round(dg.temperature_2m_max[i]) + '°'));
+        x.appendChild(el('div', 'min', Math.round(dg.temperature_2m_min[i]) + '°'));
+        x.appendChild(el('div', 'min', dg.precipitation_probability_max[i] + '% regen'));
+        dagen.appendChild(x);
+    });
+    p.append(kop, nu, dagen);
+    bouwKlok(p);
+}
+
+function vulKaarten(p, def, items) {
+    leeg(p);
+    p.appendChild(el('h1', null, def.titel));
+    const lijst = el('div', 'kaarten');
+    items.slice(0, def.aantal).forEach(i => {
+        const k = el('div', 'kaart');
+        if (i.plaatje) { const im = el('img'); im.src = i.plaatje; im.onerror = () => im.remove(); k.appendChild(im); }
+        const t = el('div');
+        t.appendChild(el('div', 'bron', i.bron));
+        t.appendChild(el('div', 'titel', i.titel || i.tekst));
+        if (def.id === 'nieuws' && i.tekst) t.appendChild(el('div', 'tekst', i.tekst));
+        k.appendChild(t);
+        lijst.appendChild(k);
+    });
+    p.appendChild(lijst);
+    bouwKlok(p);
+}
+function leeg(e) { while (e.firstChild) e.removeChild(e.firstChild); }
+
+/* ================= Rotatie ================= */
+const elementen = {};          // id -> DOM-element
+const klaar = {};              // id -> heeft inhoud
+let huidig = -1, timer = null;
+
+PAGINAS.forEach(def => {
+    const p = def.type === 'iframe' ? el('iframe', 'pagina') : el('div', 'pagina ' + (def.type === 'weer' ? 'weer ' : '') + (def.klasse || ''));
+    if (def.type === 'iframe') { p.src = def.url; klaar[def.id] = true; }
+    document.body.appendChild(p);
+    elementen[def.id] = p;
+});
+
+async function verversData() {
+    for (const def of PAGINAS) {
+        if (def.type === 'iframe') continue;
+        try {
+            const d = await haalJson(def.url);
+            if (def.type === 'weer') { vulWeer(elementen[def.id], d); klaar[def.id] = true; }
+            else { klaar[def.id] = d.length > 0; if (d.length) vulKaarten(elementen[def.id], def, d); }
+        } catch (e) { /* oude inhoud blijft staan; bij nooit gelukt wordt de pagina overgeslagen */ }
+    }
+    bolletjes();
+}
+
+function bolletjes() {
+    const b = document.getElementById('bolletjes'); leeg(b);
+    PAGINAS.filter(d => klaar[d.id]).forEach(d => b.appendChild(el('i', PAGINAS[huidig] === d ? 'actief' : '')));
+}
+
+function volgende() {
+    const actief = PAGINAS.filter(d => klaar[d.id]);
+    if (!actief.length) { timer = setTimeout(volgende, 2000); return; }
+    const vorige = PAGINAS[huidig];
+    const posVorige = actief.indexOf(vorige);
+    const nu = actief[(posVorige + 1) % actief.length];   // posVorige = -1 → eerste pagina
+    huidig = PAGINAS.indexOf(nu);
+    PAGINAS.forEach(d => elementen[d.id].classList.toggle('actief', d === nu));
+    bolletjes();
+    const v = document.getElementById('voortgang');
+    v.style.transition = 'none'; v.style.width = '0';
+    void v.offsetWidth;
+    v.style.transition = 'width ' + WISSEL_MS + 'ms linear'; v.style.width = '100%';
+    timer = setTimeout(volgende, WISSEL_MS);
+}
+
+verversData().then(volgende);
+setInterval(verversData, VERVERS_MS);
+</script>
+</body>
+</html>

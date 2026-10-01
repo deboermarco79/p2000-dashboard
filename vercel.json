@@ -1,0 +1,6 @@
+{
+  "rewrites": [
+    { "source": "/data/:soort", "destination": "/api/data?soort=:soort" },
+    { "source": "/narrowcast", "destination": "/narrowcast.html" }
+  ]
+}
