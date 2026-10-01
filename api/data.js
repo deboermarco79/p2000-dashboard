@@ -31,7 +31,12 @@ async function haal(url) {
     const ctrl = new AbortController();
     const timer = setTimeout(() => ctrl.abort(), 12000);
     try {
-        const r = await fetch(url, { signal: ctrl.signal, headers: { 'User-Agent': 'Mozilla/5.0 (narrowcasting)' } });
+        const r = await fetch(url, { signal: ctrl.signal, headers: {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36',
+            Accept: 'application/rss+xml, application/xml, text/xml, */*',
+            'Accept-Language': 'nl-NL,nl;q=0.9,en;q=0.8',
+            Referer: new URL(url).origin + '/',
+        } });
         if (!r.ok) throw new Error(r.status);
         return r;
     } finally { clearTimeout(timer); }
