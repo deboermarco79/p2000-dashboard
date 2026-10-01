@@ -162,6 +162,75 @@ def weer_json():
     return json.dumps(d).encode()
 
 
+POLITIE = "https://api.politie.nl"
+EENHEID = os.environ.get("POLITIE_EENHEID", "04")        # Eenheid Noord-Holland: url begint met "04-"
+POLITIE_KEY = os.environ.get("POLITIE_API_KEY", "")      # alleen nodig voor gezocht/vermist (v5)
+
+
+def _absoluut(u):
+    return u if not u or u.startswith("http") else "https://www.politie.nl" + ("" if u.startswith("/") else "/") + u
+
+
+def _foto(b):
+    for kand in (b.get("afbeelding"), *(b.get("afbeeldingen") or [])[:1], *(b.get("meerAfbeeldingen") or [])[:1]):
+        if kand and kand.get("url"):
+            return _absoluut(kand["url"])
+    for sig in (b.get("verdachteRepresentation") or {}).get("signalementen") or []:
+        if (sig.get("afbeelding") or {}).get("url"):
+            return _absoluut(sig["afbeelding"]["url"])
+    return ""
+
+
+def _item(bron, b):
+    tekst = re.sub(r"\s+", " ", unescape(re.sub(r"<[^>]+>", " ", b.get("introductie") or b.get("omschrijving") or ""))).strip()
+    return {"bron": bron, "titel": b.get("titel", ""), "tekst": tekst[:400], "datum": b.get("publicatieDatum", ""),
+            "plaatje": _foto(b), "url": b.get("url", "")}
+
+
+def _van_eenheid(b):
+    return re.search("/" + EENHEID + "-[^/]*$", (b.get("url") or b.get("path") or "").split("?")[0]) is not None
+
+
+def politie_json(pad, kop=None):
+    verzoek = urllib.request.Request(POLITIE + pad, headers={
+        "Accept": "application/json", **(kop or {}),
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36"})
+    try:
+        with urllib.request.urlopen(verzoek, timeout=15) as r:
+            if r.status == 204:
+                return None
+            return json.loads(r.read())
+    except Exception as fout:
+        raise RuntimeError(f"politie-api: {fout}")
+
+
+def politie_nieuws(maximaal=5):
+    uit = []
+    for offset in range(0, 200, 25):
+        if len(uit) >= maximaal:
+            break
+        d = politie_json(f"/v4/nieuws?language=nl&maxnumberofitems=25&offset={offset}")
+        if not d:
+            break
+        uit += [_item("Nieuws Noord-Holland", b) for b in d.get("nieuwsberichten", []) if _van_eenheid(b)]
+        if not d.get("iterator") or d["iterator"].get("last"):
+            break
+    return json.dumps(uit[:maximaal]).encode()
+
+
+def politie_gezocht(maximaal=5):
+    if not POLITIE_KEY:
+        raise RuntimeError("POLITIE_API_KEY ontbreekt")
+    lijsten = []
+    for pad, label in (("gezocht", "Gezocht"), ("vermist", "Vermist")):
+        d = politie_json(f"/v5/{pad}?language=nl&maxnumberofitems=25", {"x-api-key": POLITIE_KEY}) or []
+        if isinstance(d, dict):
+            d = d.get("opsporingsberichten") or d.get("vermisten") or d.get("items") or []
+        lijsten.append([_item(label, b) for b in d if _van_eenheid(b)])
+    uit = [x for paar in zip_longest(*lijsten) for x in paar if x]
+    return json.dumps(uit[:maximaal]).encode()
+
+
 def nieuws_kolom(i):
     """Eén nieuwsfeed, alleen de vijf meest recente items (voor nieuws.html)."""
     naam, url = NIEUWS_FEEDS[i]
@@ -169,10 +238,10 @@ def nieuws_kolom(i):
 
 
 DATA_ROUTES = {
-    "/data/nieuws0": lambda: nieuws_kolom(0),
-    "/data/nieuws1": lambda: nieuws_kolom(1),
+    "/data/nieuws0": politie_nieuws,
+    "/data/nieuws1": politie_gezocht,
     "/data/weer": weer_json,
-    "/data/nieuws": lambda: feeds_json(NIEUWS_FEEDS),
+    "/data/nieuws": politie_nieuws,
     "/data/social": lambda: feeds_json(SOCIAL_FEEDS),
 }
 

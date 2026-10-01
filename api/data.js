@@ -18,6 +18,57 @@ const NIEUWS = lijst(process.env.NIEUWS_FEEDS, [
     ['Politie Noord-Holland', 'https://rss.politie.nl/rss/ob/provincies/noord-holland.xml'],
     ['Politie Noord-Holland', 'https://rss.politie.nl/rss/ab/provincies/noord-holland.xml'],
 ]);
+// Politie-API (https://api.politie.nl). Nieuws heeft geen sleutel nodig; gezocht/vermist (v5) wel:
+// zet POLITIE_API_KEY in Vercel. Berichten van Eenheid Noord-Holland hebben een url die met "04-" begint.
+const POLITIE = 'https://api.politie.nl';
+const EENHEID = process.env.POLITIE_EENHEID || '04';
+const POLITIE_KEY = process.env.POLITIE_API_KEY || '';
+
+const absoluut = u => !u ? '' : /^https?:/.test(u) ? u : 'https://www.politie.nl' + (u.startsWith('/') ? '' : '/') + u;
+const eersteFoto = b => absoluut((b.afbeelding && b.afbeelding.url) || (b.afbeeldingen && b.afbeeldingen[0] && b.afbeeldingen[0].url)
+    || (b.meerAfbeeldingen && b.meerAfbeeldingen[0] && b.meerAfbeeldingen[0].url)
+    || (b.verdachteRepresentation && b.verdachteRepresentation.signalementen && b.verdachteRepresentation.signalementen[0]
+        && b.verdachteRepresentation.signalementen[0].afbeelding && b.verdachteRepresentation.signalementen[0].afbeelding.url) || '');
+const naarItem = (bron, b) => ({ bron, titel: b.titel || b.title || '', tekst: ontsnap(b.introductie || b.omschrijving || ''),
+    datum: b.publicatieDatum || '', plaatje: eersteFoto(b), url: b.url || '' });
+// "04-" aan het begin van de bestandsnaam in de url, bijv. .../nieuws/2026/oktober/1/04-brand-in-zaandam.html
+const vanEenheid = b => new RegExp('/' + EENHEID + '-[^/]*$').test(((b.url || b.path || '') + '').split('?')[0]);
+
+async function politieJson(pad, kop) {
+    const r = await fetch(POLITIE + pad, { headers: { Accept: 'application/json', ...kop,
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36' } });
+    if (r.status === 204) return null;
+    if (!r.ok) throw new Error('politie-api HTTP ' + r.status);
+    return r.json();
+}
+
+// Nieuws van Eenheid Noord-Holland: de API kent geen eenheidfilter, dus pagina's (25 per keer) doorlopen
+// en filteren op "04-" in de url, tot er vijf zijn of de lijst op is.
+async function politieNieuws(max = 5) {
+    const uit = [];
+    for (let offset = 0; offset < 200 && uit.length < max; offset += 25) {
+        const d = await politieJson('/v4/nieuws?language=nl&maxnumberofitems=25&offset=' + offset);
+        if (!d) break;
+        (d.nieuwsberichten || []).filter(vanEenheid).forEach(b => uit.push(naarItem('Nieuws Noord-Holland', b)));
+        if (!d.iterator || d.iterator.last) break;
+    }
+    return uit.slice(0, max);
+}
+
+// Gezocht en vermist (v5, met sleutel): afwisselend, alleen eenheid Noord-Holland.
+async function politieGezocht(max = 5) {
+    if (!POLITIE_KEY) throw new Error('POLITIE_API_KEY ontbreekt');
+    const kop = { 'x-api-key': POLITIE_KEY };
+    const [g, v] = await Promise.all(['gezocht', 'vermist'].map(async pad => {
+        const d = await politieJson('/v5/' + pad + '?language=nl&maxnumberofitems=25', kop);
+        const lijst = Array.isArray(d) ? d : (d && (d.opsporingsberichten || d.vermisten || d.items)) || [];
+        return lijst.filter(vanEenheid).map(b => naarItem(pad === 'gezocht' ? 'Gezocht' : 'Vermist', b));
+    }));
+    const uit = [];
+    for (let i = 0; uit.length < max && (i < g.length || i < v.length); i++) { if (g[i]) uit.push(g[i]); if (v[i]) uit.push(v[i]); }
+    return uit.slice(0, max);
+}
+
 const SOCIAL = lijst(process.env.SOCIAL_FEEDS, []);
 
 const ontsnap = t => t
@@ -74,10 +125,9 @@ async function weer() {
 async function handler(req, res) {
     const soort = req.query.soort;
     try {
-        const kolom = /^nieuws([01])$/.exec(soort || '');
-        const data = kolom ? await leesRss(NIEUWS[kolom[1]][0], NIEUWS[kolom[1]][1], 5)
+        const data = soort === 'nieuws0' || soort === 'nieuws' ? await politieNieuws()
+            : soort === 'nieuws1' ? await politieGezocht()
             : soort === 'weer' ? await weer()
-            : soort === 'nieuws' ? await feeds(NIEUWS)
             : soort === 'social' ? await feeds(SOCIAL)
             : null;
         if (data === null) { res.status(404).send('Onbekend'); return; }
