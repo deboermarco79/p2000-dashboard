@@ -15,8 +15,8 @@ const WEER = {
     lon: process.env.WEER_LON || '4.83',
 };
 const NIEUWS = lijst(process.env.NIEUWS_FEEDS, [
-    ['NOS', 'https://feeds.nos.nl/nosnieuwsalgemeen'],
-    ['NH Nieuws', 'https://www.nhnieuws.nl/rss'],
+    ['Politie Noord-Holland', 'https://rss.politie.nl/rss/ob/provincies/noord-holland.xml'],
+    ['Politie Noord-Holland', 'https://rss.politie.nl/rss/ab/provincies/noord-holland.xml'],
 ]);
 const SOCIAL = lijst(process.env.SOCIAL_FEEDS, []);
 
