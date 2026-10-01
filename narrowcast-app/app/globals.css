@@ -1,0 +1,24 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+html,
+body {
+  height: 100%;
+}
+
+body {
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Receiver: full-screen alert pulse */
+@keyframes alert-pulse {
+  0%, 100% { background-color: #a30010; }
+  50%      { background-color: #ff1f33; }
+}
+@keyframes alert-text-pulse {
+  0%, 100% { transform: scale(1); }
+  50%      { transform: scale(1.035); }
+}
+.alert-pulse      { animation: alert-pulse 1s ease-in-out infinite; }
+.alert-text-pulse { animation: alert-text-pulse 1s ease-in-out infinite; }
