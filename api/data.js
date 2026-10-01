@@ -5,6 +5,7 @@
 //   WEER_PLAATS, WEER_LAT, WEER_LON
 //   NIEUWS_FEEDS en SOCIAL_FEEDS, elk als "Naam|https://rss-url" gescheiden door komma's
 //   (bijv. SOCIAL_FEEDS="Gemeente|https://mastodon.nl/@naam.rss")
+const opslag = require('./_opslag');
 const lijst = (env, standaard) => env
     ? env.split(',').map(s => s.trim().split('|')).filter(d => d.length === 2)
     : standaard;
@@ -62,9 +63,16 @@ async function politieNieuws(max = 5) {
     return uit.slice(0, max);
 }
 
+async function uitOpslag(soort) {
+    try { return ((await opslag.lees('politie:' + soort)) || {}).items || []; } catch (e) { return []; }
+}
+
 // Eerst de politie-API (Eenheid Noord-Holland). Weigert die (403/blokkade), dan de RSS-feeds van politie.nl
 // (provinciefeeds, dus zonder eenheidfilter) zodat de kolom niet leeg blijft.
 async function nieuwsMetVangnet() {
+    // 1. Door Home Assistant opgehaalde data (zie api/push.js): komt van een thuis-IP, dus niet geblokkeerd
+    const thuis = await uitOpslag('nieuws');
+    if (thuis.length) return thuis;
     try {
         const uit = await politieNieuws();
         if (uit.length) return uit;
@@ -76,6 +84,8 @@ async function nieuwsMetVangnet() {
 
 // Gezocht en vermist (v5, met sleutel): afwisselend, alleen eenheid Noord-Holland.
 async function politieGezocht(max = 5) {
+    const g1 = await uitOpslag('gezocht'), v1 = await uitOpslag('vermist');
+    if (g1.length || v1.length) { const m = []; for (let i = 0; m.length < max && (i < g1.length || i < v1.length); i++) { if (g1[i]) m.push(g1[i]); if (v1[i]) m.push(v1[i]); } return m.slice(0, max); }
     if (!POLITIE_KEY) throw new Error('POLITIE_API_KEY ontbreekt');
     const kop = { 'x-api-key': POLITIE_KEY };
     const [g, v] = await Promise.all(['gezocht', 'vermist'].map(async pad => {
