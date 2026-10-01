@@ -35,10 +35,17 @@ const naarItem = (bron, b) => ({ bron, titel: b.titel || b.title || '', tekst: o
 const vanEenheid = b => new RegExp('/' + EENHEID + '-[^/]*$').test(((b.url || b.path || '') + '').split('?')[0]);
 
 async function politieJson(pad, kop) {
-    const r = await fetch(POLITIE + pad, { headers: { Accept: 'application/json', ...kop,
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36' } });
+    // Sleutel altijd meesturen als hij er is (sommige omgevingen vragen hem ook voor v4).
+    // Bij een 403 een tweede poging met een andere User-Agent: de API kan op de ene of de andere weigeren.
+    const sleutel = POLITIE_KEY ? { 'x-api-key': POLITIE_KEY } : {};
+    const agents = ['Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36', 'narrowcasting/1.0'];
+    let r;
+    for (const ua of agents) {
+        r = await fetch(POLITIE + pad, { headers: { Accept: 'application/json', ...sleutel, ...kop, 'User-Agent': ua } });
+        if (r.status !== 403) break;
+    }
     if (r.status === 204) return null;
-    if (!r.ok) throw new Error('politie-api HTTP ' + r.status);
+    if (!r.ok) throw new Error('politie-api HTTP ' + r.status + ' ' + (await r.text()).replace(/\s+/g, ' ').slice(0, 150));
     return r.json();
 }
 
