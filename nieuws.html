@@ -30,6 +30,7 @@
         <section><h2>Gezocht en vermist</h2><div id="k1"><div class="fout">Laden…</div></div></section>
     </div>
 </main>
+<script src="politie-browser.js"></script>
 <script>
 const AANTAL = 5;                       // per feed alleen de vijf meest recente items
 const VERVERS_MS = 5 * 60 * 1000;
@@ -80,16 +81,16 @@ async function nieuwsRechtstreeks() {
 async function laad(i) {
     const k = document.getElementById('k' + i);
     const fouten = [];
+    if (i === 0) {   // eerst rechtstreeks bij de politie (thuis-IP wordt niet geblokkeerd), pas dan via de server
+        try { toon(0, await politieNieuwsBrowser(AANTAL)); return; }
+        catch (e) { fouten.push('rechtstreeks: ' + (e.message === 'Failed to fetch' ? 'geblokkeerd (CORS)' : e.message)); }
+    }
     try {
         const r = await fetch('data/nieuws' + i, { cache: 'no-store' });
         if (!r.ok) throw new Error((await r.text()).slice(0, 200) || 'HTTP ' + r.status);
         toon(i, await r.json());
         return;
     } catch (e) { fouten.push('server: ' + e.message); }
-    if (i === 0) {
-        try { toon(0, await nieuwsRechtstreeks()); return; }
-        catch (e) { fouten.push('rechtstreeks: ' + (e.message === 'Failed to fetch' ? 'geblokkeerd (CORS)' : e.message)); }
-    }
     if (!k.querySelector('.kaart')) { k.textContent = ''; k.appendChild(el('div', 'fout', 'Niet beschikbaar: ' + fouten.join(' · '))); }
 }
 const alles = () => { laad(0); laad(1); };
