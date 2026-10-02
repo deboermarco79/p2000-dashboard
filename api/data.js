@@ -93,14 +93,8 @@ async function nieuwsMetVangnet() {
     // 1. Door Home Assistant opgehaalde data (zie api/push.js): komt van een thuis-IP, dus niet geblokkeerd
     const thuis = await uitOpslag('nieuws');
     if (thuis.length) return thuis;
-    let reden = '';
-    try {
-        const uit = await politieNieuws();
-        if (uit.length) return uit;
-        reden = 'politie-api gaf geen berichten van eenheid ' + EENHEID;
-    } catch (e) { reden = e.message; }
     const uit = await feeds(NIEUWS);
-    if (!uit.length) throw new Error('politie-api: ' + reden + ' | RSS-feeds ook niet bereikbaar; ' + (!opslag.beschikbaar
+    if (!uit.length) throw new Error('politie-RSS-feeds niet bereikbaar; ' + (!opslag.beschikbaar
         ? 'opslag (Upstash Redis) is niet aan het project gekoppeld'
         : 'opslag is leeg: Home Assistant heeft nog niets gestuurd (zie /data/opslag)'));
     return uit.slice(0, 5);
