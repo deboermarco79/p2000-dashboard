@@ -45,6 +45,10 @@ async function politieJson(pad, kop) {
         r = await fetch(POLITIE + pad, { headers: { Accept: 'application/json', ...sleutel, ...kop, 'User-Agent': ua } });
         if (r.status !== 403) break;
     }
+    // Cloudflare Worker als doorgeefluik (cloudflare/politie-worker.js), als POLITIE_PROXY_URL in Vercel is gezet.
+    if (r.status === 403 && process.env.POLITIE_PROXY_URL) {
+        r = await fetch(process.env.POLITIE_PROXY_URL.replace(/\/$/, '') + pad, { headers: { Accept: 'application/json', ...sleutel, ...(process.env.POLITIE_PROXY_TOKEN ? { 'x-token': process.env.POLITIE_PROXY_TOKEN } : {}) } });
+    }
     // Nog steeds 403: de politie weert de serverless-IP's van Vercel. Probeer via de Edge Function (api/politie-edge.js).
     if (r.status === 403) {
         const host = process.env.VERCEL_PROJECT_PRODUCTION_URL || process.env.VERCEL_URL;

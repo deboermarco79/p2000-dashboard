@@ -48,3 +48,9 @@ Test los vanuit een terminal met:
 Zet in GitHub (Settings > Secrets and variables > Actions) de secrets `VERCEL_URL`, `PUSH_TOKEN` en optioneel
 `POLITIE_API_KEY`, en start de workflow één keer handmatig (Actions > Run workflow). Staat er in de log
 "politie-api gaf HTTP 403", dan blokkeert de politie ook de GitHub-IP's en blijft Home Assistant de route.
+
+## Alternatief: Cloudflare Worker als doorgeefluik
+1. Cloudflare-account (gratis) → Workers & Pages → Create → Worker → plak `cloudflare/politie-worker.js` → Deploy.
+2. Test in de browser: `https://<jouw-worker>.workers.dev/v4/nieuws?language=nl&maxnumberofitems=2` (moet JSON geven, geen "Access Denied").
+3. Zet in Vercel `POLITIE_PROXY_URL` = die workers.dev-url (zonder slash) en deploy opnieuw.
+Staat er bij stap 2 "Access Denied", dan blokkeert de politie ook Cloudflare.
