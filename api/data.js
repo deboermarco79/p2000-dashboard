@@ -45,6 +45,11 @@ async function politieJson(pad, kop) {
         r = await fetch(POLITIE + pad, { headers: { Accept: 'application/json', ...sleutel, ...kop, 'User-Agent': ua } });
         if (r.status !== 403) break;
     }
+    // Nog steeds 403: de politie weert de serverless-IP's van Vercel. Probeer via de Edge Function (api/politie-edge.js).
+    if (r.status === 403) {
+        const host = process.env.VERCEL_PROJECT_PRODUCTION_URL || process.env.VERCEL_URL;
+        if (host) r = await fetch('https://' + host + '/api/politie-edge?pad=' + encodeURIComponent(pad), { headers: { Accept: 'application/json' } });
+    }
     if (r.status === 204) return null;
     if (!r.ok) throw new Error('politie-api HTTP ' + r.status + ' ' + (await r.text()).replace(/\s+/g, ' ').slice(0, 150));
     return r.json();
@@ -84,12 +89,14 @@ async function nieuwsMetVangnet() {
     // 1. Door Home Assistant opgehaalde data (zie api/push.js): komt van een thuis-IP, dus niet geblokkeerd
     const thuis = await uitOpslag('nieuws');
     if (thuis.length) return thuis;
+    let reden = '';
     try {
         const uit = await politieNieuws();
         if (uit.length) return uit;
-    } catch (e) { /* vangnet hieronder */ }
+        reden = 'politie-api gaf geen berichten van eenheid ' + EENHEID;
+    } catch (e) { reden = e.message; }
     const uit = await feeds(NIEUWS);
-    if (!uit.length) throw new Error('politie-api en RSS-feeds beide niet bereikbaar; ' + (!opslag.beschikbaar
+    if (!uit.length) throw new Error('politie-api: ' + reden + ' | RSS-feeds ook niet bereikbaar; ' + (!opslag.beschikbaar
         ? 'opslag (Upstash Redis) is niet aan het project gekoppeld'
         : 'opslag is leeg: Home Assistant heeft nog niets gestuurd (zie /data/opslag)'));
     return uit.slice(0, 5);
