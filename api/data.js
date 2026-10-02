@@ -16,6 +16,7 @@ const WEER = {
     lon: process.env.WEER_LON || '4.83',
 };
 const NIEUWS = lijst(process.env.NIEUWS_FEEDS, [
+    ['Politie Noord-Holland', 'https://rss.politie.nl/rss/ob/provincies/noord-holland.xml'],
     ['Politie Noord-Holland', 'https://rss.politie.nl/rss/ab/provincies/noord-holland.xml'],
 ]);
 // Politie-API (https://api.politie.nl). Nieuws heeft geen sleutel nodig; gezocht/vermist (v5) wel:
