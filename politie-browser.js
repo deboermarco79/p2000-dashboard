@@ -49,7 +49,7 @@
             window.postMessage({ type: 'politie-vraag', id, url }, '*');
         });
     }
-    window.politieNieuwsBrowser = async function (max) {
+    async function nieuwsViaApi(max) {
         const uit = [];
         for (let offset = 0; offset < 200 && uit.length < max; offset += 25) {
             const r = await haal('https://api.politie.nl/v4/nieuws?language=nl&maxnumberofitems=25&offset=' + offset);
@@ -67,5 +67,35 @@
         }
         if (!uit.length) throw new Error('geen berichten van eenheid ' + EENHEID);
         return uit.slice(0, max);
+    }
+
+    // De RSS-feeds van politie.nl (provinciefeeds): zelfde route, XML uitlezen in de browser.
+    const FEEDS = ['https://rss.politie.nl/rss/ob/provincies/noord-holland.xml', 'https://rss.politie.nl/rss/ab/provincies/noord-holland.xml'];
+    async function leesFeed(url) {
+        const r = await haal(url);
+        if (!r.ok) throw new Error('rss HTTP ' + r.status);
+        const doc = new DOMParser().parseFromString(await r.text(), 'text/xml');
+        return Array.from(doc.querySelectorAll('item')).map(i => {
+            const t = n => { const e = i.querySelector(n); return e ? e.textContent : ''; };
+            const media = i.querySelector('enclosure[url], content[url], thumbnail[url]');
+            const html = (t('description').match(/<img[^>]+src=["']([^"']+)/i) || [])[1] || '';
+            return { bron: 'Politie Noord-Holland', titel: schoon(t('title')), tekst: schoon(t('description')), datum: t('pubDate'),
+                url: t('link'), plaatje: abs((media && media.getAttribute('url')) || html) };
+        });
+    }
+    async function nieuwsViaRss(max) {
+        const per = (await Promise.all(FEEDS.map(u => leesFeed(u).catch(() => [])))).filter(g => g.length);
+        const uit = [];
+        for (let i = 0; per.some(g => i < g.length); i++) per.forEach(g => { if (g[i]) uit.push(g[i]); });
+        if (!uit.length) throw new Error('rss-feeds niet bereikbaar');
+        return uit.slice(0, max);
+    }
+
+    window.politieNieuwsBrowser = async function (max) {
+        try { return await nieuwsViaApi(max); }
+        catch (e1) {
+            try { return await nieuwsViaRss(max); }
+            catch (e2) { throw new Error(e1.message + ' · ' + e2.message); }
+        }
     };
 })();
