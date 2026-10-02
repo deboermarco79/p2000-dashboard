@@ -18,9 +18,6 @@ const WEER = {
 const NIEUWS = lijst(process.env.NIEUWS_FEEDS, [
     ['Politie Noord-Holland', 'https://rss.politie.nl/rss/ob/provincies/noord-holland.xml'],
     ['Politie Noord-Holland', 'https://rss.politie.nl/rss/ab/provincies/noord-holland.xml'],
-    // De politie weert alle datacenter-IP's (ook voor RSS). Deze bronnen niet: regionaal politienieuws als vangnet.
-    ['Politie nieuws', 'https://news.google.com/rss/search?q=politie+Noord-Holland+when:3d&hl=nl&gl=NL&ceid=NL:nl'],
-    ['NH Nieuws', 'https://www.nhnieuws.nl/rss'],
 ]);
 // Politie-API (https://api.politie.nl). Nieuws heeft geen sleutel nodig; gezocht/vermist (v5) wel:
 // zet POLITIE_API_KEY in Vercel. Berichten van Eenheid Noord-Holland hebben een url die met "04-" begint.
