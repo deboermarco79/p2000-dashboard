@@ -45,6 +45,11 @@ async function politieJson(pad, kop) {
         r = await fetch(POLITIE + pad, { headers: { Accept: 'application/json', ...sleutel, ...kop, 'User-Agent': ua } });
         if (r.status !== 403) break;
     }
+    // Nog steeds 403: de politie weert de serverless-IP's van Vercel. Probeer via de Edge Function (api/politie-edge.js).
+    if (r.status === 403) {
+        const host = process.env.VERCEL_PROJECT_PRODUCTION_URL || process.env.VERCEL_URL;
+        if (host) r = await fetch('https://' + host + '/api/politie-edge?pad=' + encodeURIComponent(pad), { headers: { Accept: 'application/json' } });
+    }
     if (r.status === 204) return null;
     if (!r.ok) throw new Error('politie-api HTTP ' + r.status + ' ' + (await r.text()).replace(/\s+/g, ' ').slice(0, 150));
     return r.json();
