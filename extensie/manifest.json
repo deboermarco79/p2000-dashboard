@@ -1,0 +1,13 @@
+{
+  "manifest_version": 3,
+  "name": "Politie-API voor narrowcasting",
+  "version": "1.0",
+  "description": "Laat de narrowcasting-pagina api.politie.nl lezen via jouw eigen verbinding (omzeilt de CORS-beperking).",
+  "host_permissions": ["https://api.politie.nl/*"],
+  "background": { "service_worker": "background.js" },
+  "content_scripts": [{
+    "matches": ["https://narrowcasting-roan.vercel.app/*"],
+    "js": ["content.js"],
+    "run_at": "document_start"
+  }]
+}
