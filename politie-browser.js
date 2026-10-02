@@ -8,7 +8,7 @@
     window.politieNieuwsBrowser = async function (max) {
         const uit = [];
         for (let offset = 0; offset < 200 && uit.length < max; offset += 25) {
-            const r = await fetch('https://api.politie.nl/v4/nieuws?language=nl&maxnumberofitems=25&offset=' + offset, { cache: 'no-store' });
+            const r = await fetch('https://api.politie.nl/v4/nieuws?language=nl&maxnumberofitems=25&offset=' + offset);
             if (r.status === 204) break;
             if (!r.ok) throw new Error('politie-api HTTP ' + r.status);
             const d = await r.json();
