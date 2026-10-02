@@ -67,6 +67,17 @@ async function uitOpslag(soort) {
     try { return ((await opslag.lees('politie:' + soort)) || {}).items || []; } catch (e) { return []; }
 }
 
+// Diagnose: /data/opslag laat zien of de opslag gekoppeld is en wanneer Home Assistant voor het laatst data stuurde.
+async function opslagStatus() {
+    const uit = { opslagGekoppeld: opslag.beschikbaar, pushTokenIngesteld: !!process.env.PUSH_TOKEN };
+    if (!opslag.beschikbaar) return uit;
+    for (const s of ['nieuws', 'gezocht', 'vermist']) {
+        try { const d = await opslag.lees('politie:' + s); uit[s] = d ? { bijgewerkt: d.bijgewerkt, aantal: d.items.length } : 'nog niets ontvangen'; }
+        catch (e) { uit[s] = 'fout: ' + e.message; }
+    }
+    return uit;
+}
+
 // Eerst de politie-API (Eenheid Noord-Holland). Weigert die (403/blokkade), dan de RSS-feeds van politie.nl
 // (provinciefeeds, dus zonder eenheidfilter) zodat de kolom niet leeg blijft.
 async function nieuwsMetVangnet() {
@@ -78,7 +89,9 @@ async function nieuwsMetVangnet() {
         if (uit.length) return uit;
     } catch (e) { /* vangnet hieronder */ }
     const uit = await feeds(NIEUWS);
-    if (!uit.length) throw new Error('politie-api en RSS-feeds beide niet bereikbaar');
+    if (!uit.length) throw new Error('politie-api en RSS-feeds beide niet bereikbaar; ' + (!opslag.beschikbaar
+        ? 'opslag (Upstash Redis) is niet aan het project gekoppeld'
+        : 'opslag is leeg: Home Assistant heeft nog niets gestuurd (zie /data/opslag)'));
     return uit.slice(0, 5);
 }
 
@@ -154,7 +167,8 @@ async function weer() {
 async function handler(req, res) {
     const soort = req.query.soort;
     try {
-        const data = soort === 'nieuws0' || soort === 'nieuws' ? await nieuwsMetVangnet()
+        const data = soort === 'opslag' ? await opslagStatus()
+            : soort === 'nieuws0' || soort === 'nieuws' ? await nieuwsMetVangnet()
             : soort === 'nieuws1' ? await politieGezocht()
             : soort === 'weer' ? await weer()
             : soort === 'social' ? await feeds(SOCIAL)
