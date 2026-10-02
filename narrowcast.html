@@ -47,6 +47,7 @@
 <body>
 <div id="voortgang"></div>
 <div id="bolletjes"></div>
+<script src="politie-browser.js"></script>
 <script>
 /* ================= Instellingen ================= */
 const WISSEL_MS = 20 * 1000;          // elke pagina staat 20 seconden in beeld
@@ -147,7 +148,8 @@ async function verversData() {
     for (const def of PAGINAS) {
         if (def.type === 'iframe') continue;
         try {
-            const d = await haalJson(def.url);
+            // Nieuws: eerst rechtstreeks bij de politie (api.politie.nl blokkeert Vercel), anders via de server
+            const d = def.id === 'nieuws' ? await politieNieuwsBrowser(def.aantal).catch(() => haalJson(def.url)) : await haalJson(def.url);
             if (def.type === 'weer') { vulWeer(elementen[def.id], d); klaar[def.id] = true; }
             else { klaar[def.id] = d.length > 0; if (d.length) vulKaarten(elementen[def.id], def, d); }
         } catch (e) { /* oude inhoud blijft staan; bij nooit gelukt wordt de pagina overgeslagen */ }
