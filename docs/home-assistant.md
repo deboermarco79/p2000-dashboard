@@ -42,3 +42,9 @@ Controleer daarna in HA onder Ontwikkelaarstools → Acties of `shell_command.po
 Test los vanuit een terminal met:
 `curl -s -X POST -H "x-push-token: JOUW_TOKEN" -d '[]' "https://<project>.vercel.app/api/push?soort=nieuws&offset=0"`
 (antwoord `{"bewaard":0}` betekent dat token en opslag werken).
+
+## Alternatief zonder Home Assistant: GitHub Action
+`.github/workflows/politie-naar-vercel.yml` doet hetzelfde elke 15 minuten vanaf een GitHub-runner.
+Zet in GitHub (Settings > Secrets and variables > Actions) de secrets `VERCEL_URL`, `PUSH_TOKEN` en optioneel
+`POLITIE_API_KEY`, en start de workflow één keer handmatig (Actions > Run workflow). Staat er in de log
+"politie-api gaf HTTP 403", dan blokkeert de politie ook de GitHub-IP's en blijft Home Assistant de route.
