@@ -1,0 +1,420 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+<base target="_top">
+<meta charset="utf-8">
+<title>Instagram Politie Eenheid Noord-Holland</title>
+<style>
+  :root {
+    --bg: #0b111e;
+    --bg-2: #0d172a;
+    --panel: #111d36;
+    --text: #ffffff;
+    --text-muted: #c3cee6;
+    --accent-blue: #6db3ff;
+    --accent-red: #ff5a6a;
+    --safe: 48px;
+    --fade-ms: 800ms;
+    --font: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  }
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0; width: 100%; height: 100%; overflow: hidden;
+    background: var(--bg); color: var(--text);
+    font-family: var(--font);
+    cursor: none; user-select: none; -webkit-user-select: none;
+  }
+  #stage {
+    position: absolute; left: 50%; top: 50%;
+    width: 1920px; height: 1080px;
+    transform-origin: center center;
+    transform: translate(-50%, -50%) scale(1);
+    background: linear-gradient(160deg, var(--bg) 0%, var(--bg-2) 100%);
+    overflow: hidden;
+  }
+  #accent {
+    position: absolute; left: 0; top: 0; width: 100%; height: 8px;
+    background: linear-gradient(90deg, var(--accent-blue) 0%, var(--accent-blue) 55%, var(--accent-red) 100%);
+    opacity: 0.55;
+  }
+  #safe {
+    position: absolute; inset: var(--safe);
+    display: flex; gap: 64px;
+  }
+
+  /* Links */
+  #left {
+    flex: 0 0 auto; min-width: 640px; max-width: 900px;
+    display: flex; flex-direction: column; justify-content: space-between;
+  }
+  #logoSlot { height: 120px; width: 120px; } /* leeg, optioneel logo-slot */
+  .name { font-size: 52px; line-height: 1.2; font-weight: 700; margin: 0; }
+  .handle { font-size: 40px; line-height: 1.3; color: var(--text-muted); margin-top: 8px; overflow-wrap: anywhere; }
+  #followersBlock { margin-top: 40px; }
+  #followers {
+    font-size: 220px; line-height: 1; font-weight: 800;
+    letter-spacing: -0.02em; font-variant-numeric: tabular-nums; white-space: nowrap;
+  }
+  .label { font-size: 64px; line-height: 1.2; font-weight: 600; color: var(--accent-blue); margin-top: 8px; }
+  #lastPost .kicker { font-size: 36px; line-height: 1.3; color: var(--text-muted); }
+  #age { font-size: 56px; line-height: 1.2; font-weight: 700; }
+
+  /* Rechts */
+  #right { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; gap: 32px; }
+  #media {
+    position: relative; flex: 1 1 auto; min-height: 0;
+    border-radius: 28px; overflow: hidden; background: var(--panel);
+  }
+  .slide { position: absolute; inset: 0; opacity: 0; z-index: 1; }
+  .slide.top { z-index: 2; }
+  .slide.on { opacity: 1; transition: opacity var(--fade-ms) ease; }
+  .slide .bg {
+    position: absolute; left: -60px; top: -60px;
+    width: calc(100% + 120px); height: calc(100% + 120px);
+    object-fit: cover; filter: blur(48px) brightness(0.55) saturate(1.1);
+  }
+  .slide .fg { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; }
+  #placeholder {
+    position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
+    padding: 64px; text-align: center; font-size: 40px; line-height: 1.4; color: var(--text-muted);
+    opacity: 0; transition: opacity 400ms ease;
+  }
+  #caption {
+    flex: 0 0 auto; height: calc(40px * 1.3 * 5);
+    font-size: 40px; line-height: 1.3; color: var(--text);
+    display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 5; line-clamp: 5;
+    overflow: hidden; overflow-wrap: break-word;
+  }
+  #caption.clipped {
+    -webkit-mask-image: linear-gradient(to bottom, #000 0, #000 calc(100% - 64px), rgba(0, 0, 0, 0.25) 100%);
+    mask-image: linear-gradient(to bottom, #000 0, #000 calc(100% - 64px), rgba(0, 0, 0, 0.25) 100%);
+  }
+
+  /* Zachte tekstwissel */
+  .fade { transition: opacity 400ms ease; }
+  .fading { opacity: 0; }
+
+  /* Lege staat: neutraal merkscherm */
+  .live-only { transition: opacity 600ms ease; }
+  body[data-state="empty"] .live-only { opacity: 0; }
+  body[data-state="empty"] #placeholder { opacity: 1; }
+  body[data-state="empty"] #left { justify-content: center; }
+  body[data-state="empty"] #logoSlot { display: none; }
+</style>
+</head>
+<body data-state="empty">
+<div id="stage">
+  <div id="accent"></div>
+  <div id="safe">
+    <section id="left">
+      <div id="logoSlot" aria-hidden="true"></div>
+      <div id="identity">
+        <h1 class="name" id="displayName">Politie Eenheid Noord-Holland</h1>
+        <div class="handle fade" id="handle">@politie_eenheid_noordholland</div>
+        <div id="followersBlock" class="live-only">
+          <div id="followers" class="fade"></div>
+          <div class="label">volgers</div>
+        </div>
+      </div>
+      <div id="lastPost" class="live-only">
+        <div class="kicker">Laatste bericht</div>
+        <div id="age" class="fade"></div>
+      </div>
+    </section>
+    <section id="right">
+      <div id="media">
+        <div id="placeholder">Het laatste bericht verschijnt hier zodra het beschikbaar is.</div>
+        <div class="slide" id="slide0"><img class="bg" alt=""><img class="fg" alt=""></div>
+        <div class="slide" id="slide1"><img class="bg" alt=""><img class="fg" alt=""></div>
+      </div>
+      <div id="caption" class="fade live-only"></div>
+    </section>
+  </div>
+</div>
+
+<script>
+// <pure>
+var TZ = 'Europe/Amsterdam';
+var MONTHS_NL = ['januari', 'februari', 'maart', 'april', 'mei', 'juni', 'juli', 'augustus', 'september', 'oktober', 'november', 'december'];
+var CAPTION_CLIENT_MAX_CHARS = 420;
+
+/** Witruimte normaliseren, URLs en hashtag-blokken verwijderen. */
+function normalizeCaption(raw) {
+  var t = String(raw == null ? '' : raw);
+  t = t.replace(/(?:https?:\/\/|www\.)\S+/gi, ' ');
+  t = t.replace(/^[ \t]*[.•·*\-–—]+[ \t]*$/gm, ' ');
+  t = t.replace(/^[ \t]*(?:#[\p{L}\p{N}_]+[ \t]*)+$/gmu, ' ');
+  t = ' ' + t.replace(/\s+/g, ' ').trim();
+  t = t.replace(/(?:\s+#[\p{L}\p{N}_]+)+\s*$/u, '');
+  return t.replace(/\s+/g, ' ').trim();
+}
+
+/** Kort in op een woordgrens (nooit midden in een woord of emoji); totaal <= max tekens. */
+function truncateAtWord(text, max) {
+  var t = String(text == null ? '' : text).trim();
+  if (t.length <= max) return t;
+  var limit = max - 1;
+  var candidate = t.slice(0, limit + 1);
+  var cut = -1;
+  for (var i = candidate.length - 1; i > 0; i--) {
+    if (/\s/.test(candidate.charAt(i))) { cut = i; break; }
+  }
+  var head;
+  if (cut > 0) {
+    head = t.slice(0, cut);
+  } else {
+    head = t.slice(0, limit);
+    var last = head.charCodeAt(head.length - 1);
+    if (last >= 0xD800 && last <= 0xDBFF) head = head.slice(0, -1);
+  }
+  return head.replace(/\s+$/, '') + '…';
+}
+
+function prepareCaption(raw) {
+  return truncateAtWord(normalizeCaption(raw), CAPTION_CLIENT_MAX_CHARS);
+}
+
+function formatFollowers(n) {
+  if (typeof n !== 'number' || !isFinite(n)) return '';
+  return new Intl.NumberFormat('nl-NL').format(Math.round(n));
+}
+
+/** Instagram geeft "2026-10-08T12:34:56+0000"; zet de offset om naar "+00:00". */
+function parseInstagramTimestamp(str) {
+  if (!str) return NaN;
+  var s = String(str).replace(/([+-]\d{2})(\d{2})$/, '$1:$2');
+  return Date.parse(s);
+}
+
+var _zonedFormatter = null;
+function getZonedParts(ms) {
+  if (!_zonedFormatter) {
+    _zonedFormatter = new Intl.DateTimeFormat('en-GB', {
+      timeZone: TZ, year: 'numeric', month: 'numeric', day: 'numeric',
+      hour: 'numeric', minute: 'numeric', hourCycle: 'h23'
+    });
+  }
+  var out = {};
+  _zonedFormatter.formatToParts(new Date(ms)).forEach(function (p) {
+    if (p.type !== 'literal') out[p.type] = parseInt(p.value, 10);
+  });
+  return { year: out.year, month: out.month, day: out.day, hour: out.hour, minute: out.minute };
+}
+
+function dayNumber(parts) {
+  return Math.round(Date.UTC(parts.year, parts.month - 1, parts.day) / 86400000);
+}
+
+/** Relatieve tijd; kalenderdagen in Europe/Amsterdam, onafhankelijk van de tijdzone van de tv. */
+function formatRelativeTime(postMs, nowMs) {
+  if (typeof postMs !== 'number' || !isFinite(postMs)) return '';
+  var diff = nowMs - postMs;
+  if (diff < 60000) return 'zojuist';
+  if (diff < 3600000) {
+    var m = Math.floor(diff / 60000);
+    return m === 1 ? '1 minuut geleden' : m + ' minuten geleden';
+  }
+  if (diff < 86400000) return Math.floor(diff / 3600000) + ' uur geleden';
+  var p = getZonedParts(postMs);
+  var n = getZonedParts(nowMs);
+  var days = dayNumber(n) - dayNumber(p);
+  if (days <= 0) return Math.floor(diff / 3600000) + ' uur geleden'; // 25-uursdag bij wintertijd
+  if (days === 1) return 'Gisteren';
+  if (days <= 6) return days + ' dagen geleden';
+  return p.day + ' ' + MONTHS_NL[p.month - 1] + (p.year !== n.year ? ' ' + p.year : '');
+}
+
+/** Wachttijd tot de volgende poll: normaal het interval, na fouten exponentiele backoff met plafond. */
+function nextPollDelay(failureCount, intervalMs, maxBackoffMs, baseBackoffMs) {
+  if (!failureCount || failureCount <= 0) return intervalMs;
+  return Math.min(maxBackoffMs, baseBackoffMs * Math.pow(2, failureCount - 1));
+}
+
+/** Stille herlaadbeurt: in het opgegeven uur, en alleen als de pagina al een tijd draait (voorkomt een lus). */
+function shouldReloadNow(parts, uptimeMs, hour, minUptimeMs) {
+  return parts.hour === hour && uptimeMs > minUptimeMs;
+}
+// </pure>
+
+(function () {
+  'use strict';
+
+  var POLL_INTERVAL_MS = 5 * 60 * 1000;
+  var EMPTY_POLL_INTERVAL_MS = 60 * 1000;   // alleen zolang er nog nooit data is getoond
+  var MAX_BACKOFF_MS = 5 * 60 * 1000;
+  var BASE_BACKOFF_MS = 15 * 1000;
+  var POLL_WATCHDOG_MS = 60 * 1000;
+  var TICK_MS = 30 * 1000;
+  var CROSSFADE_MS = 800;
+  var TEXT_FADE_MS = 400;
+  var DAILY_RELOAD_ENABLED = true;
+  var DAILY_RELOAD_HOUR = 4;
+  var DAILY_RELOAD_MIN_UPTIME_MS = 30 * 60 * 1000;
+
+  var state = {
+    version: null, hasData: false, failures: 0, offset: 0, reqId: 0,
+    imageKey: null, activeSlide: -1, postMs: NaN, chain: Promise.resolve()
+  };
+
+  var el = {
+    stage: document.getElementById('stage'),
+    handle: document.getElementById('handle'),
+    displayName: document.getElementById('displayName'),
+    followers: document.getElementById('followers'),
+    age: document.getElementById('age'),
+    caption: document.getElementById('caption'),
+    slides: [document.getElementById('slide0'), document.getElementById('slide1')]
+  };
+
+  function nowMs() { return Date.now() + state.offset; }
+
+  function fitStage() {
+    var s = Math.min(window.innerWidth / 1920, window.innerHeight / 1080);
+    if (!isFinite(s) || s <= 0) s = 1;
+    el.stage.style.transform = 'translate(-50%, -50%) scale(' + s + ')';
+  }
+
+  function setText(node, text) {
+    if (node.textContent === text) return;
+    if (node._fadeTimer) clearTimeout(node._fadeTimer);
+    if (!node.textContent) { node.textContent = text; return; }
+    node.classList.add('fading');
+    node._fadeTimer = setTimeout(function () {
+      node.textContent = text;
+      node.classList.remove('fading');
+      node._fadeTimer = null;
+      if (node === el.caption) updateClipped();
+    }, TEXT_FADE_MS);
+  }
+
+  function updateClipped() {
+    requestAnimationFrame(function () {
+      el.caption.classList.toggle('clipped', el.caption.scrollHeight > el.caption.clientHeight + 1);
+    });
+  }
+
+  function updateAge() {
+    setText(el.age, formatRelativeTime(state.postMs, nowMs()));
+  }
+
+  function setLive(isLive) {
+    document.body.setAttribute('data-state', isLive ? 'live' : 'empty');
+  }
+
+  /** Laadt en decodeert eerst; wisselt pas daarna. Geeft true bij succes. */
+  function swapImage(src) {
+    var next = state.activeSlide === 0 ? 1 : 0;
+    var nextEl = el.slides[next];
+    var bg = nextEl.querySelector('.bg');
+    var fg = nextEl.querySelector('.fg');
+    var probe = new Image();
+    probe.src = src;
+    return probe.decode().then(function () {
+      bg.src = src;
+      fg.src = src;
+      return Promise.all([bg.decode(), fg.decode()]);
+    }).then(function () {
+      var prevEl = state.activeSlide >= 0 ? el.slides[state.activeSlide] : null;
+      nextEl.classList.add('top', 'on');
+      if (prevEl) prevEl.classList.remove('top');
+      state.activeSlide = next;
+      if (prevEl) {
+        setTimeout(function () { prevEl.classList.remove('on'); }, CROSSFADE_MS + 100);
+      }
+      return true;
+    }).catch(function () { return false; });
+  }
+
+  function applyData(d) {
+    if (typeof d.serverNow === 'number' && isFinite(d.serverNow)) state.offset = d.serverNow - Date.now();
+    if (d.unchanged) { updateAge(); return Promise.resolve(); }
+    if (d.status !== 'ok') {
+      if (!state.hasData) setLive(false);
+      return Promise.resolve();
+    }
+    var src = d.imageDataUri || d.imageUrl || null;
+    var imageStep = Promise.resolve(true);
+    if (src && d.imageKey && d.imageKey !== state.imageKey) {
+      imageStep = swapImage(src).then(function (ok) {
+        if (ok) state.imageKey = d.imageKey;
+        return ok;
+      });
+    }
+    return imageStep.then(function (ok) {
+      setText(el.followers, formatFollowers(d.followers));
+      if (!ok) return; // nieuw beeld mislukt: tekst niet laten afwijken; versie blijft staan voor een nieuwe poging
+      if (d.username) setText(el.handle, '@' + d.username);
+      if (d.displayName) el.displayName.textContent = d.displayName;
+      if (d.post) {
+        state.postMs = parseInstagramTimestamp(d.post.timestamp);
+        setText(el.caption, prepareCaption(d.post.caption));
+        updateClipped();
+      }
+      updateAge();
+      state.hasData = true;
+      state.version = d.version;
+      setLive(true);
+    });
+  }
+
+  function schedulePoll(delay) { setTimeout(poll, delay); }
+
+  function onPollSuccess(d) {
+    if (!d || typeof d !== 'object') { onPollFailure(); return; }
+    state.failures = 0;
+    state.chain = state.chain.then(function () { return applyData(d); }).catch(function () {});
+    schedulePoll(state.hasData ? POLL_INTERVAL_MS : EMPTY_POLL_INTERVAL_MS);
+  }
+
+  function onPollFailure() {
+    // UI blijft ongemoeid; geen foutmelding op het scherm.
+    state.failures += 1;
+    schedulePoll(nextPollDelay(state.failures, POLL_INTERVAL_MS, MAX_BACKOFF_MS, BASE_BACKOFF_MS));
+  }
+
+  function poll() {
+    var id = ++state.reqId;
+    var settled = false;
+    var watchdog = setTimeout(function () {
+      if (settled) return;
+      settled = true;
+      onPollFailure();
+    }, POLL_WATCHDOG_MS);
+    function finish(handler, arg) {
+      if (settled || id !== state.reqId) return;
+      settled = true;
+      clearTimeout(watchdog);
+      handler(arg);
+    }
+    try {
+      google.script.run
+        .withSuccessHandler(function (d) { finish(onPollSuccess, d); })
+        .withFailureHandler(function () { finish(onPollFailure); })
+        .getDashboardData(state.version);
+    } catch (e) {
+      finish(onPollFailure);
+    }
+  }
+
+  function tick() {
+    try {
+      updateAge();
+      updateClipped();
+      if (DAILY_RELOAD_ENABLED &&
+          shouldReloadNow(getZonedParts(nowMs()), performance.now(), DAILY_RELOAD_HOUR, DAILY_RELOAD_MIN_UPTIME_MS)) {
+        location.reload();
+        return;
+      }
+    } catch (e) { /* nooit iets tonen */ }
+    setTimeout(tick, TICK_MS);
+  }
+
+  window.addEventListener('resize', fitStage);
+  window.addEventListener('error', function (e) { if (e && e.preventDefault) e.preventDefault(); return true; });
+  fitStage();
+  poll();
+  setTimeout(tick, TICK_MS);
+})();
+</script>
+</body>
+</html>
