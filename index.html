@@ -302,10 +302,16 @@
             { naam: '112hier.nl (voorlichter Kennemerland)', url: 'https://112hier.nl/feed.json?capcodes=0127185', dienst: 'VR KEN', kleur: 'var(--brandweer)', formaat: '112hier' },
             { naam: '112hier.nl (voorlichter Noord-Holland-Noord)', url: 'https://112hier.nl/feed.json?capcodes=0205625', dienst: 'VR NHN', kleur: 'var(--brandweer)', formaat: '112hier' },
         ];
-        const VERVERS_MS = 60 * 1000;          // nieuwe meldingen ophalen
-        // 112hier.nl staat tot 30 verzoeken/minuut toe (anders 429). Vier 112hier-feeds elke 10 s
-        // is 24 verzoeken/minuut, ruim binnen die marge, en zes keer zo snel als de rest van de minuut.
-        const SNEL_MS = 10 * 1000;
+        // De alarmeringdroid-RSS-feeds zijn pure backup: elke dienst staat al in een eigen,
+        // snellere 112hier-feed (zie SNEL_MS hieronder). Deze hoeven dus niet elke minuut vers
+        // te zijn — alleen de dekking als 112hier zelf eens uitvalt — dus 5 minuten i.p.v. 1,
+        // wat flink scheelt in Vercel's gratis Fluid-CPU-budget.
+        const VERVERS_MS = 5 * 60 * 1000;      // nieuwe meldingen ophalen (backup-feeds)
+        // 112hier.nl staat tot 30 verzoeken/minuut toe (anders 429). Vier 112hier-feeds elke 30 s
+        // is 8 verzoeken/minuut, ruim binnen die marge. Eerst stond dit op 10 s, maar dat trok
+        // de eigen Vercel-proxy (api/feed.js) 24/7 zo vaak aan dat het gratis Fluid-CPU-budget
+        // (4 uur/maand) werd opgebruikt — zie ook de langere cache in api/feed.js hieronder.
+        const SNEL_MS = 30 * 1000;
         const OPNIEUW_MS = 20 * 1000;          // na een mislukte poging sneller opnieuw proberen
         const NIEUW_MS = 5 * 60 * 1000;        // melding telt als "nieuw" (knipperend label)
         const CACHE_KEY = 'p2000-persalarm-v13';
