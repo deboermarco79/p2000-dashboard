@@ -30,9 +30,11 @@ async function handler(req, res) {
 
     const stuurGeen = () => {
         res.setHeader('Access-Control-Allow-Origin', '*');
-        // Op de rand van Vercel's CDN 20 s cachen: haalt de bron niet vaker op dan nodig,
-        // ook al vragen meerdere kijkers (of de eerste 60 s-poging en een snelle herprobeer) tegelijk.
-        res.setHeader('Cache-Control', 's-maxage=20, stale-while-revalidate=40');
+        // Op de rand van Vercel's CDN cachen, iets langer dan de pollfrequentie van de
+        // snelste feed (SNEL_MS in index.html, 30 s): zo blijft deze functie bij elke
+        // normale poll een cache-hit i.p.v. steeds opnieuw uit te voeren. Dat scheelt flink
+        // in Active CPU-verbruik bij een tv die dit 24/7 open heeft staan.
+        res.setHeader('Cache-Control', 's-maxage=30, stale-while-revalidate=60');
     };
 
     // Ruim onder Vercel's functietijdslimiet (zie maxDuration hierboven), zodat dit een
